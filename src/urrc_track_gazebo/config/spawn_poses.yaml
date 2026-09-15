@@ -1,0 +1,27 @@
+# Vehicle model is intentionally not included. Spawn your own car at these poses.
+circuits:
+  monza:
+    x: 39.59260
+    y: -27.38488
+    z: 0.120
+    yaw_rad: 1.5707963
+  silverstone:
+    x: -8.86048
+    y: -17.46781
+    z: 0.120
+    yaw_rad: -0.0822501
+  spa:
+    x: -15.28724
+    y: -20.58682
+    z: 0.120
+    yaw_rad: -0.0851970
+  suzuka:
+    x: 13.66322
+    y: -10.77802
+    z: 0.120
+    yaw_rad: 1.4089726
+  monaco:
+    x: 0.49533
+    y: -13.09530
+    z: 0.120
+    yaw_rad: 0.0447087

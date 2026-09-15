@@ -1,0 +1,23 @@
+project:
+  workspace: urrc_2
+  scale_class: 1/10
+vehicle_envelope_m:
+  max_length: 0.55
+  max_width: 0.25
+  max_height: 0.18
+track:
+  width_m: 1.5
+  surface: uniform_very_dark_gray
+  floor_rgb: [0.045, 0.045, 0.050]
+  road_rgb: [0.055, 0.055, 0.060]
+  pit_lane: false
+cones:
+  color: yellow
+  height_m: 0.09
+  spacing_m: 0.5
+steering_validation:
+  wheelbase_reference_m: 0.33
+  max_allowed_deg: 29.0
+  design_target_deg: 20.0
+circuits: [monza, silverstone, spa, suzuka, monaco]
+development_default: monza
