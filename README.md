@@ -58,24 +58,6 @@ cd ~/urrc_2
 ./run_gazebo.sh
 ```
 
-## 6. 코드가 업데이트된 경우
-
-GitHub의 최신 내용을 다시 받아오려면 아래 순서로 실행합니다.
-
-```bash
-cd ~/urrc_2
-git pull origin main
-source /opt/ros/jazzy/setup.bash
-colcon build --symlink-install
-source ~/urrc_2/install/setup.bash
-```
-
-그다음 연습맵을 실행합니다.
-
-```bash
-cd ~/urrc_2
-./run_gazebo.sh
-```
 
 ## 7. 차량 제작 기준
 
