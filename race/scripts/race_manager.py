@@ -162,15 +162,16 @@ def publish_start_batch(entrants,value,timeout=30):
         for pub in pubs: node.destroy_publisher(pub)
         node.destroy_node()
 def light_request(track,index,on,root):
-    start=read_json(root/f"src/urrc_track_gazebo/tracks/processed/{track}.json")["start_finish"]
-    yaw,z=start["yaw"],start["z"]; tx,ty=math.cos(yaw),math.sin(yaw); nx,ny=-ty,tx; lat=(index-2)*.16
-    # Match the lens faces in the generated world: 1.5 m beyond start.
-    x=1.5*tx+lat*nx; y=1.5*ty+lat*ny
-    req=(f'name: "race_red_{index+1}" type: POINT pose {{ position {{ x: {x:.8f} y: {y:.8f} z: {z+1.96:.8f} }} orientation {{ w: 1 }} }} '
-         'diffuse { r: 1 g: 0.01 b: 0.01 a: 1 } specular { r: 1 g: 0.02 b: 0.02 a: 1 } '
-         'attenuation_constant: 1 attenuation_linear: 0.15 attenuation_quadratic: 0.01 range: 8 '
-         f'intensity: {1.0 if on else 0.0} cast_shadows: false')
-    subprocess.run(["gz","service","-s",f"/world/{track}/light_config","--reqtype","gz.msgs.Light","--reptype","gz.msgs.Boolean","--timeout","1500","--req",req],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=5)
+    # Change the lens material itself so the rectangular LED glows without
+    # washing red light across the gantry and track.
+    emissive=("r: 1 g: 0.008 b: 0.008 a: 1" if on
+              else "r: 0 g: 0 b: 0 a: 1")
+    req=(f'name: "red_lens_{index+1}" parent_name: "gantry_visuals" '
+         'material { ambient { r: 0.12 g: 0.006 b: 0.008 a: 1 } '
+         'diffuse { r: 0.12 g: 0.006 b: 0.008 a: 1 } '
+         'specular { r: 0.02 g: 0.02 b: 0.02 a: 1 } '
+         f'emissive {{ {emissive} }} }}')
+    subprocess.run(["gz","service","-s",f"/world/{track}/visual_config","--reqtype","gz.msgs.Visual","--reptype","gz.msgs.Boolean","--timeout","1500","--req",req],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=5)
 def lights_all(track,root,on):
     with ThreadPoolExecutor(max_workers=5) as pool:
         futures=[pool.submit(light_request,track,i,on,root) for i in range(5)]
@@ -198,7 +199,7 @@ def start_world(root,track,event):
     for _ in range(90):
         if server.poll() is not None:raise RuntimeError("Gazebo가 시작 직후 종료됐습니다. race/results/gazebo.log 확인")
         p=subprocess.run(["gz","service","-l"],capture_output=True,text=True,timeout=3)
-        if f"/world/{track}/light_config" in p.stdout:break
+        if f"/world/{track}/visual_config" in p.stdout:break
         time.sleep(.5)
     else:raise TimeoutError("Gazebo의 신호등 제어 서비스를 찾지 못했습니다.")
     bridge=subprocess.Popen(["ros2","run","ros_gz_bridge","parameter_bridge","/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",f"/world/{track}/dynamic_pose/info@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V"],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,start_new_session=True)
@@ -232,12 +233,15 @@ def validate(root):
     for track in ("monza",):
         world=ET.parse(package/"worlds"/f"{track}_race.sdf").getroot()
         gantry=world.find(".//model[@name='race_start_gantry']")
+        lenses=gantry.findall("./link[@name='gantry_visuals']/visual") if gantry is not None else []
+        lens_names={n.get("name") for n in lenses}
         lights=[n for n in world.findall("world/light") if n.get("name","").startswith("race_red_")]
         meta=read_json(package/f"tracks/processed/{track}.json")
-        if gantry is None or len(lights)!=5 or len(meta["grid"])!=20:
-            raise ValueError(f"{track}: 신호등/그리드 리소스가 완전하지 않습니다.")
+        expected={f"red_lens_{i}" for i in range(1,6)}
+        if gantry is None or not expected.issubset(lens_names) or len(lights)!=5 or len(meta["grid"])!=20:
+            raise ValueError(f"{track}: 신호등 렌즈/그리드 리소스가 완전하지 않습니다.")
         if any(float(n.findtext("intensity","-1"))!=0 for n in lights):
-            raise ValueError(f"{track}: 출발등은 대기 시 모두 꺼져 있어야 합니다.")
+            raise ValueError(f"{track}: 신호등 보조 광원은 대기 시 모두 꺼져 있어야 합니다.")
     print(f"참가 패키지 {len(es)}개 검사 PASS (최대 {MAX_ENTRIES}개)");return es
 def grid(root,track):return read_json(root/f"src/urrc_track_gazebo/tracks/processed/{track}.json")["grid"]
 def print_table(rows,title):
