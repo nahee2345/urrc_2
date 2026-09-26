@@ -1,0 +1,131 @@
+<?xml version='1.0' encoding='utf-8'?>
+<sdf version="1.9">
+  <model name="urrc_monza">
+    <static>true</static>
+    <link name="track">
+      <collision name="road_collision">
+        <geometry>
+          <mesh>
+            <uri>model://urrc_monza/meshes/road_collision.obj</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <collision name="wall_outer_collision">
+        <geometry>
+          <mesh>
+            <uri>model://urrc_monza/meshes/wall_outer_collision.obj</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <collision name="wall_inner_collision">
+        <geometry>
+          <mesh>
+            <uri>model://urrc_monza/meshes/wall_inner_collision.obj</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="road_visual">
+        <cast_shadows>true</cast_shadows>
+        <geometry>
+          <mesh>
+            <uri>model://urrc_monza/meshes/road.obj</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.14 0.15 0.16 1</ambient>
+          <diffuse>0.14 0.15 0.16 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+        </material>
+      </visual>
+      <visual name="markings_visual">
+        <cast_shadows>false</cast_shadows>
+        <geometry>
+          <mesh>
+            <uri>model://urrc_monza/meshes/markings.obj</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.96 0.96 0.94 1</ambient>
+          <diffuse>0.96 0.96 0.94 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+        </material>
+      </visual>
+      <visual name="wall_outer_red_visual">
+        <cast_shadows>true</cast_shadows>
+        <geometry>
+          <mesh>
+            <uri>model://urrc_monza/meshes/wall_outer_red.obj</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.78 0.035 0.045 1</ambient>
+          <diffuse>0.78 0.035 0.045 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+        </material>
+      </visual>
+      <visual name="wall_inner_red_visual">
+        <cast_shadows>true</cast_shadows>
+        <geometry>
+          <mesh>
+            <uri>model://urrc_monza/meshes/wall_inner_red.obj</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.78 0.035 0.045 1</ambient>
+          <diffuse>0.78 0.035 0.045 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+        </material>
+      </visual>
+      <visual name="wall_outer_white_visual">
+        <cast_shadows>true</cast_shadows>
+        <geometry>
+          <mesh>
+            <uri>model://urrc_monza/meshes/wall_outer_white.obj</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.9 0.9 0.88 1</ambient>
+          <diffuse>0.9 0.9 0.88 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+        </material>
+      </visual>
+      <visual name="wall_inner_white_visual">
+        <cast_shadows>true</cast_shadows>
+        <geometry>
+          <mesh>
+            <uri>model://urrc_monza/meshes/wall_inner_white.obj</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.9 0.9 0.88 1</ambient>
+          <diffuse>0.9 0.9 0.88 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

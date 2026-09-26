@@ -1,0 +1,11 @@
+build/
+build_standalone/
+install/
+install_standalone/
+log/
+validation_results/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.obj.tmp

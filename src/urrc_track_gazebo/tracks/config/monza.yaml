@@ -1,0 +1,58 @@
+name: monza
+scale: 0.2
+official_length_real_m: 5793
+start_source_vertex: 0
+start_position_quality: Approximate start-line placement on official-map main straight;
+  not a surveyed grid origin.
+sampling_m: 0.35
+mesh_max_triangle_area_m2: 0.18
+road_thickness_m: 0.08
+width_profile_source_vertices:
+- - 0
+  - 12
+- - 2
+  - 12
+- - 5
+  - 10
+- - 14
+  - 10
+- - 26
+  - 11
+- - 36
+  - 11
+- - 41
+  - 10
+- - 60
+  - 10
+- - 73
+  - 11
+- - 80
+  - 10
+- - 92
+  - 11
+- - 105
+  - 12
+- - 124
+  - 12
+width_quality: ESTIMATED segment widths, not surveyed left/right track boundaries.
+  Source indices refer to unchanged raw GeoJSON.
+elevation:
+  method: SRTM terrain DEM; circular smoothing; published elevation-range calibration;
+    NOT road survey
+  dem_smoothing_sigma_samples: 1.5
+  reference_range_real_m: 12.8
+  reference_url: https://www.formula1.com/en/latest/article/highs-and-lows-which-f1-track-has-the-most-elevation-changes-.7I9JEcBw3R2AqXbnJ6hyvc.7I9JEcBw3R2AqXbnJ6hyvc
+wall:
+  height_m: 0.8
+  thickness_m: 0.12
+  color_block_m: 2.0
+grid:
+  count: 20
+  pole_side: -1
+  first_slot_back_m: 2.0
+  successive_slot_spacing_m: 1.6
+  same_column_spacing_m: 3.2
+  box_length_m: 1.2
+  box_width_m: 0.5
+  line_width_m: 0.025
+  quality: F1-style two-column staggered markings; local surveyed box dimensions unavailable

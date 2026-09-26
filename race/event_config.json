@@ -1,0 +1,14 @@
+{
+  "track_pool": ["monza"],
+  "qualifying_laps": 2,
+  "final_laps": 10,
+  "grid_slots": 20,
+  "max_entries": 12,
+  "light_count": 5,
+  "light_interval_seconds": 1.0,
+  "lights_out_min_delay_seconds": 0.2,
+  "lights_out_max_delay_seconds": 3.0,
+  "lap_timeout_seconds": 600,
+  "race_timeout_seconds": 2400,
+  "spawn_z_offset_default_m": 0.04
+}

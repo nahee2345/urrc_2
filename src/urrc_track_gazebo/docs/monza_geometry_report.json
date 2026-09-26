@@ -1,0 +1,44 @@
+{
+  "track": "monza",
+  "target_length_m": 1158.6000000000001,
+  "length_xy_m": 1158.4733028142848,
+  "length_3d_m": 1158.513638160086,
+  "length_error_xy_pct": -0.010935369041542575,
+  "scale": 0.2,
+  "length_normalization_applied": false,
+  "centerline_simple": true,
+  "road_single_hole": true,
+  "road_valid": true,
+  "width_min_m": 2.0,
+  "width_max_m": 2.4000000000000004,
+  "elevation_range_m": 2.5633018401649874,
+  "grid_count": 20,
+  "meshes": {
+    "road": {
+      "vertices": 31106,
+      "triangles": 62212,
+      "watertight": true
+    },
+    "wall_outer": {
+      "vertices": 68860,
+      "triangles": 137720,
+      "watertight": true,
+      "height_above_road_m": 0.8
+    },
+    "wall_inner": {
+      "vertices": 40902,
+      "triangles": 81804,
+      "watertight": true,
+      "height_above_road_m": 0.8
+    }
+  },
+  "source_shape_deviation_m": 0.4040017177145333,
+  "official_survey_accuracy": "UNVERIFIED: public outline, estimated widths, DEM-based elevation",
+  "gazebo_harmonic_runtime": "NOT_RUN",
+  "gazebo_jetty_runtime": "NOT_RUN",
+  "offsets": {
+    "left_raw_offset_simple": true,
+    "right_raw_offset_simple": true,
+    "offset_trim_area_m2": 0.0
+  }
+}
