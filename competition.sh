@@ -10,17 +10,23 @@ source_setup() {
   set -u
   return "$source_status"
 }
-if [[ -n "${ROS_DISTRO:-}" && -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]]; then
+if [[ -n "${URRC_ROS_SETUP:-}" ]]; then
+  source_setup "$URRC_ROS_SETUP"
+elif [[ "${ROS_VERSION:-}" == "2" ]] && command -v ros2 >/dev/null 2>&1; then
+  : # Use an already sourced ROS installation, including custom prefixes.
+elif [[ -n "${ROS_DISTRO:-}" && -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]]; then
   source_setup "/opt/ros/${ROS_DISTRO}/setup.bash"
 elif [[ -f /opt/ros/jazzy/setup.bash ]]; then
   source_setup /opt/ros/jazzy/setup.bash
 else
   echo "Ubuntu에 설치된 ROS 2 환경을 먼저 source하세요." >&2; exit 2
 fi
-export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-77}"
+cd "$ROOT"
+mkdir -p "$ROOT/race/inbox" "$ROOT/race/entrants" "$ROOT/race/results"
+export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-12}"
 case "${1:-}" in
   new-event)
-    exec python3 "$ROOT/race/scripts/race_manager.py" new-event --root "$ROOT"
+    exec python3 "$ROOT/race/scripts/race_manager.py" new-event --root "$ROOT" "${@:2}"
     ;;
   status)
     exec python3 "$ROOT/race/scripts/race_manager.py" status --root "$ROOT"
@@ -32,7 +38,7 @@ case "${1:-}" in
       if [[ "$1" == prepare ]]; then exec python3 "$ROOT/race/scripts/race_manager.py" validate --root "$ROOT"; fi
       exec python3 "$ROOT/race/scripts/race_manager.py" "$1" --root "$ROOT"
     fi
-    colcon build --base-paths "${BASE_PATHS[@]}" --build-base "$ROOT/race/build" --install-base "$ROOT/race/install" --log-base "$ROOT/race/log" --merge-install
+    colcon --log-base "$ROOT/race/log" build --base-paths "${BASE_PATHS[@]}" --build-base "$ROOT/race/build" --install-base "$ROOT/race/install" --merge-install
     source_setup "$ROOT/race/install/setup.bash"
     if [[ "$1" == prepare ]]; then exec python3 "$ROOT/race/scripts/race_manager.py" validate --root "$ROOT"; fi
     exec python3 "$ROOT/race/scripts/race_manager.py" "$1" --root "$ROOT"

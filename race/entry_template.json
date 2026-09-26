@@ -3,7 +3,7 @@
   "display_name": "Team 01",
   "ros_package": "team01_race",
   "algorithm_launch_file": "race.launch.py",
-  "vehicle_model_file": "src/team01_race/models/race_car/model.sdf",
+  "vehicle_model_file": "src/team01_race/models/team01_car/model.sdf",
   "vehicle_model_format": "sdf",
   "spawn_z_offset_m": 0.04,
   "speed_topic": "/team01/speed",

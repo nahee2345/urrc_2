@@ -20,7 +20,7 @@ def choose_track(mode, seed=None):
     return mode
 
 
-def command_for(package, name, *, server=False, view="overview", iterations=None):
+def command_for(package, name, *, server=False, view="overview", iterations=None, lights=True):
     cmd = ["gz", "sim", "-r", "-v", "3"]
     if server:
         cmd.append("-s")
@@ -28,13 +28,14 @@ def command_for(package, name, *, server=False, view="overview", iterations=None
         cmd.extend(["--gui-config", str(package / "worlds" / f"{name}_{view}.gui.config")])
     if iterations is not None:
         cmd.extend(["--iterations", str(iterations)])
-    cmd.append(str(package / "worlds" / f"{name}.sdf"))
+    cmd.append(str(package / "worlds" / f"{name}{'_race' if lights else ''}.sdf"))
     return cmd
 
 
 def run(args=None):
     parser = argparse.ArgumentParser(description="URRC Monza 1/5 circuit")
     parser.add_argument("track", choices=TRACKS)
+    parser.add_argument("--no-lights", action="store_true", help="Open the world without the start gantry")
     parser.add_argument("--server", action="store_true", help="Server only, no GUI")
     parser.add_argument("--view", choices=("overview", "grid"), default="overview")
     parser.add_argument("--iterations", type=int, help="Stop after this many simulation iterations")
@@ -45,11 +46,11 @@ def run(args=None):
         parser.error("--iterations must be positive")
     package = opts.package.resolve()
     name = choose_track(opts.track)
-    world = package / "worlds" / f"{name}.sdf"
+    world = package / "worlds" / f"{name}{'_race' if not opts.no_lights else ''}.sdf"
     model = package / "models" / ("urrc_" + name) / "model.sdf"
     if not world.is_file() or not model.is_file():
         parser.exit(2, f"Missing installed resources: {world}\n")
-    cmd = command_for(package, name, server=opts.server, view=opts.view, iterations=opts.iterations)
+    cmd = command_for(package, name, server=opts.server, view=opts.view, iterations=opts.iterations, lights=not opts.no_lights)
     env = os.environ.copy()
     env["GZ_SIM_RESOURCE_PATH"] = str(package / "models") + os.pathsep + env.get("GZ_SIM_RESOURCE_PATH", "")
     if opts.dry_run:
@@ -75,7 +76,7 @@ def run(args=None):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             parser.exit(3, "Another URRC world is running. Close that window / use Ctrl+C first.\n")
-        env.setdefault("GZ_PARTITION", f"urrc_f1_{os.getuid()}_{os.getpid()}")
+        env.setdefault("GZ_PARTITION", f"urrc_practice_{os.getuid()}")
         log_dir = Path(env.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "urrc_f1"
         log_dir.mkdir(parents=True, exist_ok=True)
         (log_dir / "last_run.json").write_text(json.dumps({"track": name, "command": cmd}, indent=2) + "\n")

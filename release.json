@@ -1,0 +1,12 @@
+{
+  "role": "practice",
+  "tracks": [
+    "monza"
+  ],
+  "vehicle_max_m": [
+    0.55,
+    0.25,
+    0.18
+  ],
+  "contract_version": 1
+}

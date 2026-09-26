@@ -9,3 +9,11 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.obj.tmp
+
+/race/event_state.json
+/race/inbox/*
+!/race/inbox/.gitkeep
+/race/entrants/*
+!/race/entrants/.gitkeep
+/race/results/*
+!/race/results/.gitkeep

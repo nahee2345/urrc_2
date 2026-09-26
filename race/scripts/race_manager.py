@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
 ENTRY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,31}$")
 MAX_ENTRIES = 12
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+from submission import normalize
 
 
 def read_json(path): return json.loads(Path(path).read_text())
@@ -20,10 +22,14 @@ def safe_extract(archive, destination):
         if member.is_dir(): target.mkdir(parents=True, exist_ok=True)
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
+            if (member.external_attr >> 16) & 0o170000 == 0o120000:
+                raise ValueError(f"ZIP 심볼릭 링크는 허용되지 않습니다: {member.filename}")
             with archive.open(member) as src, target.open("wb") as dst: shutil.copyfileobj(src, dst)
+            mode=(member.external_attr >> 16) & 0o777
+            if mode:target.chmod(mode)
 
 def load_entries(root, maximum=MAX_ENTRIES):
-    entries=[]; base=root/"race/entrants"
+    entries=[]; base=root/"race/entrants"; base.mkdir(parents=True,exist_ok=True)
     for folder in sorted(base.iterdir()):
         mf=folder/"race_entry.json"
         if not folder.is_dir() or not mf.is_file(): continue
@@ -45,39 +51,29 @@ def load_entries(root, maximum=MAX_ENTRIES):
     return entries
 
 def intake(root):
-    inbox=root/"race/inbox"; entries=root/"race/entrants"; inbox.mkdir(parents=True,exist_ok=True); entries.mkdir(parents=True,exist_ok=True)
-    for zpath in sorted(inbox.glob("*.zip")):
-        temp=Path(tempfile.mkdtemp(prefix="entry_",dir=root/"race"))
-        try:
-            with zipfile.ZipFile(zpath) as z: safe_extract(z,temp)
-            mf=temp/"race_entry.json"
-            if not mf.is_file(): raise ValueError(f"{zpath.name}: ZIP 최상위에 race_entry.json이 없습니다.")
-            entry=read_json(mf); eid=entry.get("entry_id","")
-            if not ENTRY_RE.fullmatch(eid): raise ValueError(f"{zpath.name}: entry_id 형식 오류")
-            if not (temp/"src").is_dir(): raise ValueError(f"{zpath.name}: ROS 패키지가 포함된 src/ 폴더가 필요합니다.")
+    inbox=root/"race/inbox"; entries=root/"race/entrants"
+    inbox.mkdir(parents=True,exist_ok=True); entries.mkdir(parents=True,exist_ok=True)
+    sources=sorted(p for p in inbox.iterdir() if not p.name.startswith('.') and not p.name.endswith('.loaded') and (p.is_dir() or p.suffix=='.zip'))
+    for source in sources:
+        with tempfile.TemporaryDirectory(prefix="intake_",dir=root/"race") as d:
+            temp=Path(d); raw=source
+            if source.is_file():
+                raw=temp/'raw'; raw.mkdir()
+                with zipfile.ZipFile(source) as z:safe_extract(z,raw)
+            stage=temp/'entry'; eid=normalize(raw,stage)
             target=entries/eid
-            if target.exists(): raise ValueError(f"{eid}: 기존 참가 폴더가 있어 덮어쓰지 않았습니다.")
-            temp.rename(target); zpath.rename(zpath.with_suffix(".loaded")); print(f"접수 {eid}: {zpath.name}")
-        finally:
-            if temp.exists(): shutil.rmtree(temp,ignore_errors=True)
-    for source in sorted(p for p in inbox.iterdir() if p.is_dir()):
-        mf=source/"race_entry.json"
-        if not mf.is_file():
-            raise ValueError(f"{source.name}: 폴더 최상위에 race_entry.json이 없습니다.")
-        entry=read_json(mf); eid=entry.get("entry_id","")
-        if not ENTRY_RE.fullmatch(eid) or eid != source.name:
-            raise ValueError(f"{source.name}: 폴더명과 유효한 entry_id가 같아야 합니다.")
-        if not (source/"src").is_dir():
-            raise ValueError(f"{source.name}: ROS 패키지가 포함된 src/ 폴더가 필요합니다.")
-        target=entries/eid
-        if target.exists(): raise ValueError(f"{eid}: 기존 참가 폴더가 있어 덮어쓰지 않았습니다.")
-        shutil.move(str(source),str(target)); print(f"접수 {eid}: {source.name}/")
+            if target.exists():raise ValueError(f"{eid}: 기존 참가 폴더가 있어 덮어쓰지 않았습니다.")
+            stage.rename(target)
+            source.rename(source.with_name(source.name+'.loaded'))
+            print(f"접수 {eid}: {source.name}")
     return load_entries(root)
 
-def get_event(root,new=False):
+def get_event(root,new=False,track=None):
     cfg=read_json(root/"race/event_config.json"); path=root/"race/event_state.json"
+    if track is not None and track not in cfg["track_pool"]:
+        raise ValueError(f"선택할 수 없는 트랙: {track}")
     if new or not path.exists():
-        event={"event_id":uuid.uuid4().hex[:10],"track":"monza","created_unix":time.time(),"seed":random.randrange(1,2**31)}
+        event={"event_id":uuid.uuid4().hex[:10],"track":track or random.choice(cfg["track_pool"]),"created_unix":time.time(),"seed":random.randrange(1,2**31)}
         path.write_text(json.dumps(event,indent=2)+"\n"); return event
     event=read_json(path)
     if event["track"] not in cfg["track_pool"]: raise ValueError("대회 트랙 설정 오류: new-event로 새로 추첨하세요.")
@@ -90,13 +86,14 @@ def launch_args(e):
 class PoseLapMonitor:
     def __init__(self,track,root,ids):
         import rclpy
+        import rclpy.executors
         from rclpy.node import Node
         from rosgraph_msgs.msg import Clock
         from tf2_msgs.msg import TFMessage
         self.rclpy=rclpy
         if not rclpy.ok(): rclpy.init(args=None)
         self.node=Node("urrc_race_lap_monitor"); self.cv=threading.Condition(); self.sim_time=0.
-        self.states={i:{"seen":False,"previous_s":None,"laps":0,"armed":False,"start_time":None,"finish_time":None,"last_lap_time":None} for i in ids}
+        self.states={i:{"seen":False,"previous_s":None,"laps":0,"armed":False,"crossed_start":False,"start_time":None,"finish_time":None,"last_lap_time":None} for i in ids}
         meta=read_json(root/f"src/urrc_track_gazebo/tracks/processed/{track}.json")["start_finish"]
         self.x0,self.y0,self.yaw=meta["x"],meta["y"],meta["yaw"]
         with (root/f"src/urrc_track_gazebo/tracks/processed/{track}_centerline.csv").open() as f: width=float(next(csv.DictReader(f))["road_width_m"])
@@ -119,6 +116,10 @@ class PoseLapMonitor:
                     progress=dx*math.cos(self.yaw)+dy*math.sin(self.yaw); lateral=-dx*math.sin(self.yaw)+dy*math.cos(self.yaw)
                     if s["armed"] and lap_crossing(s["previous_s"],progress,lateral,self.half_width):
                         st=tf.header.stamp; now=st.sec+st.nanosec*1e-9 or self.sim_time
+                        if not s["crossed_start"]:
+                            s["crossed_start"]=True
+                            s["previous_s"]=progress
+                            continue
                         s["laps"]+=1; s["last_lap_time"]=now
                         if s["laps"]>=s["target_laps"]: s["finish_time"]=now
                     s["previous_s"]=progress
@@ -134,7 +135,7 @@ class PoseLapMonitor:
     def arm(self,names,laps):
         with self.cv:
             for n in names:
-                s=self.states[n]; s.update({"laps":0,"armed":True,"target_laps":laps,"start_time":self.sim_time,"finish_time":None,"last_lap_time":None,"previous_s":None})
+                s=self.states[n]; s.update({"laps":0,"armed":True,"crossed_start":False,"target_laps":laps,"start_time":self.sim_time,"finish_time":None,"last_lap_time":None})
     def snapshot(self,n):
         with self.cv:return dict(self.states[n])
     def close(self):
@@ -161,6 +162,14 @@ def publish_start_batch(entrants,value,timeout=30):
     finally:
         for pub in pubs: node.destroy_publisher(pub)
         node.destroy_node()
+def gz_service(track, service, reqtype, request, env=None):
+    result=subprocess.run(["gz","service","-s",f"/world/{track}/{service}",
+        "--reqtype",reqtype,"--reptype","gz.msgs.Boolean","--timeout","5000","--req",request],
+        check=True,capture_output=True,text=True,timeout=8,env=env)
+    if not re.search(r"data:\s*true", result.stdout):
+        raise RuntimeError(f"Gazebo {service} 요청 실패: {result.stdout} {result.stderr}")
+
+
 def light_request(track,index,on,root):
     # Change the lens material itself so the rectangular LED glows without
     # washing red light across the gantry and track.
@@ -171,13 +180,14 @@ def light_request(track,index,on,root):
          'diffuse { r: 0.12 g: 0.006 b: 0.008 a: 1 } '
          'specular { r: 0.02 g: 0.02 b: 0.02 a: 1 } '
          f'emissive {{ {emissive} }} }}')
-    subprocess.run(["gz","service","-s",f"/world/{track}/visual_config","--reqtype","gz.msgs.Visual","--reptype","gz.msgs.Boolean","--timeout","1500","--req",req],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=5)
+    gz_service(track,"visual_config","gz.msgs.Visual",req)
 def lights_all(track,root,on):
     with ThreadPoolExecutor(max_workers=5) as pool:
         futures=[pool.submit(light_request,track,i,on,root) for i in range(5)]
         for future in futures: future.result()
 def start_sequence(track,root,entrants,delay):
     publish_start_batch(entrants,False)
+    lights_all(track,root,False)
     for i in range(5): light_request(track,i,True,root); time.sleep(1.0)
     time.sleep(delay)
     lights_all(track,root,False)
@@ -194,15 +204,20 @@ def start_world(root,track,event):
     if inherited: resource_paths.append(inherited)
     env["GZ_SIM_RESOURCE_PATH"]=os.pathsep.join(resource_paths)
     env["GZ_PARTITION"]="urrc_race_"+event["event_id"]
+    os.environ["GZ_PARTITION"]=env["GZ_PARTITION"]
     log=(root/"race/results/gazebo.log").open("w")
     server=subprocess.Popen(["gz","sim","-r","--gui-config",str(pkg/"worlds"/f"{track}_grid.gui.config"),str(pkg/"worlds"/f"{track}_race.sdf")],env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
-    for _ in range(90):
-        if server.poll() is not None:raise RuntimeError("Gazebo가 시작 직후 종료됐습니다. race/results/gazebo.log 확인")
-        p=subprocess.run(["gz","service","-l"],capture_output=True,text=True,timeout=3)
-        if f"/world/{track}/visual_config" in p.stdout:break
-        time.sleep(.5)
-    else:raise TimeoutError("Gazebo의 신호등 제어 서비스를 찾지 못했습니다.")
-    bridge=subprocess.Popen(["ros2","run","ros_gz_bridge","parameter_bridge","/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",f"/world/{track}/dynamic_pose/info@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V"],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,start_new_session=True)
+    try:
+        for _ in range(90):
+            if server.poll() is not None:raise RuntimeError("Gazebo가 시작 직후 종료됐습니다. race/results/gazebo.log 확인")
+            p=subprocess.run(["gz","service","-l"],capture_output=True,text=True,timeout=3)
+            if f"/world/{track}/visual_config" in p.stdout:break
+            time.sleep(.5)
+        else:raise TimeoutError("Gazebo의 신호등 제어 서비스를 찾지 못했습니다.")
+        bridge=subprocess.Popen(["ros2","run","ros_gz_bridge","parameter_bridge","/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",f"/world/{track}/dynamic_pose/info@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V"],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,start_new_session=True)
+    except Exception:
+        stop(server);log.close()
+        raise
     return server,bridge,env,log
 
 def stop(proc):
@@ -215,14 +230,26 @@ def stop(proc):
             except subprocess.TimeoutExpired:os.killpg(proc.pid,signal.SIGKILL);proc.wait()
 def spawn(root,track,e,slot,env):
     z=slot["road_z"]+float(e.get("spawn_z_offset_m",.04))
-    subprocess.run(["ros2","run","ros_gz_sim","create","--world",track,"--file",e["_model"],"--name",e["entry_id"],"--x",str(slot["x"]),"--y",str(slot["y"]),"--z",str(z),"--yaw",str(slot["yaw"])],check=True,env=env,timeout=60)
+    subprocess.run(["ros2","run","ros_gz_sim","create","--world",track,"--file",e["_model"],"--name",e["entry_id"],"--x",str(slot["x"]),"--y",str(slot["y"]),"--z",str(z),"-Y",str(slot["yaw"])],check=True,env=env,timeout=60)
 def remove(track,eid,env):
-    subprocess.run(["ros2","run","ros_gz_sim","remove","--world",track,"--entity",eid],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=30)
+    gz_service(track,"remove","gz.msgs.Entity",f'name: {json.dumps(eid)} type: MODEL',env=env)
 def launch_algo(e,env):
     cmd=["ros2","launch",e["ros_package"],e["algorithm_launch_file"],*launch_args(e)]
-    return subprocess.Popen(cmd,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.STDOUT,start_new_session=True)
+    path=Path(e["_folder"]).parent.parent/"results"/f"{e['entry_id']}_algorithm.log"
+    with path.open("a") as log:
+        return subprocess.Popen(cmd,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+
 def validate(root):
     es=load_entries(root)
+    import xml.etree.ElementTree as ET
+    packages={}
+    for e in es:
+        for manifest in (Path(e["_folder"])/"src").rglob("package.xml"):
+            name=ET.parse(manifest).getroot().findtext("name")
+            if name in packages:
+                raise ValueError(f"중복 ROS 패키지 이름: {name} ({packages[name]}, {e['entry_id']})")
+            if name=="urrc_track_gazebo":raise ValueError("참가물에 운영자 맵 패키지를 포함할 수 없습니다.")
+            packages[name]=e["entry_id"]
     for e in es:
         p=subprocess.run(["ros2","pkg","prefix",e["ros_package"]],capture_output=True,text=True)
         if p.returncode:raise ValueError(f"ROS 패키지를 빌드하지 못했습니다: {e['ros_package']}")
@@ -230,7 +257,7 @@ def validate(root):
         if not launch.is_file():raise ValueError(f"launch 파일 없음: {launch}")
     import xml.etree.ElementTree as ET
     package=root/"src/urrc_track_gazebo"
-    for track in ("monza",):
+    for track in read_json(root/"race/event_config.json")["track_pool"]:
         world=ET.parse(package/"worlds"/f"{track}_race.sdf").getroot()
         gantry=world.find(".//model[@name='race_start_gantry']")
         lenses=gantry.findall("./link[@name='gantry_visuals']/visual") if gantry is not None else []
@@ -257,7 +284,12 @@ def run_mode(root,mode):
     if mode=="final":
         qpath=results/"qualifying.json"
         if not qpath.is_file():raise ValueError("예선을 먼저 완료하세요.")
-        q=read_json(qpath);rank={r["entry_id"]:i for i,r in enumerate(q["results"])};entries.sort(key=lambda e:rank[e["entry_id"]])
+        q=read_json(qpath)
+        if q["event"]["event_id"]!=event["event_id"] or q["track"]!=track:
+            raise ValueError("예선 결과와 현재 이벤트/트랙이 다릅니다. 예선을 다시 진행하세요.")
+        if {r["entry_id"] for r in q["results"]}!={e["entry_id"] for e in entries}:
+            raise ValueError("예선 이후 참가자 구성이 바뀌었습니다. 예선을 다시 진행하세요.")
+        rank={r["entry_id"]:i for i,r in enumerate(q["results"])};entries.sort(key=lambda e:rank[e["entry_id"]])
         laps,timeout=int(cfg["final_laps"]),int(cfg["race_timeout_seconds"])
     else:laps,timeout=int(cfg["qualifying_laps"]),int(cfg["lap_timeout_seconds"])
     slots=grid(root,track);server=bridge=monitor=None;algos=[];out=[]
@@ -323,14 +355,18 @@ def run_mode(root,mode):
         if 'log' in locals():log.close()
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument("command",choices=("intake","validate","new-event","qualifying","final","status"));p.add_argument("--root",type=Path,required=True);a=p.parse_args();root=a.root.resolve()
+    p=argparse.ArgumentParser();p.add_argument("command",choices=("intake","validate","new-event","qualifying","final","status"));p.add_argument("--root",type=Path,default=Path(__file__).resolve().parents[2]);p.add_argument("--track");a=p.parse_args();root=a.root.resolve()
     try:
         if a.command=="intake":print(f"접수 완료: {len(intake(root))}개 참가 패키지")
         elif a.command=="validate":validate(root)
         elif a.command=="new-event":
-            e=get_event(root,True)
-            for f in (root/"race/results").glob("*.json"):f.unlink()
-            (root/"race/results/final.csv").unlink(missing_ok=True);print(f"새 이벤트 {e['event_id']} / 추첨 트랙 {e['track']}")
+            results=root/"race/results";results.mkdir(parents=True,exist_ok=True)
+            previous=list(results.glob("*.json"))+list(results.glob("*.csv"))
+            if previous:
+                archive=results/"archive"/uuid.uuid4().hex[:12];archive.mkdir(parents=True)
+                for f in previous:f.rename(archive/f.name)
+            e=get_event(root,True,a.track)
+            print(f"새 이벤트 {e['event_id']} / 트랙 {e['track']}")
         elif a.command in ("qualifying","final"):run_mode(root,a.command)
         else:
             ep=root/"race/event_state.json";print(json.dumps(read_json(ep) if ep.is_file() else {"event":"미생성"},ensure_ascii=False,indent=2))
