@@ -17,3 +17,8 @@ __pycache__/
 !/race/entrants/.gitkeep
 /race/results/*
 !/race/results/.gitkeep
+
+# Practice-only generated files and private test tracks
+/.practice_native_build/
+/local_validation/
+/.upstream_checkout/

@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.16)
+project(urrc_practice_motion LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(gz-sim8 REQUIRED)
+add_library(urrc_practice_motion SHARED PracticeMotion.cc)
+target_link_libraries(urrc_practice_motion PRIVATE gz-sim8::gz-sim8)
+set_target_properties(urrc_practice_motion PROPERTIES PREFIX "lib")

@@ -1,78 +1,42 @@
-# URRC 몬자 연습 환경
+# URRC 몬자 자율주행 연습 환경
 
-참가자용 저장소입니다. **몬자 맵만 포함**하며 신호등이 있는 월드를 기본 실행합니다.
-대회 운영용 6개 맵은 [urrc_f1_ws](https://github.com/nahee2345/urrc_f1_ws)에 있습니다.
+Ubuntu 24.04 · ROS 2 Jazzy · Gazebo Harmonic용입니다. **몬자 맵 1개**를 사용하며 참가자는 자신의 차량·알고리즘을 직접 제작하고 스폰합니다.
 
-## 설치 및 다운로드
-
-Ubuntu 24.04 + ROS 2 Jazzy + Gazebo Harmonic이 설치된 PC에서 실행합니다.
+## 설치
 
 ```bash
-sudo apt update
-sudo apt install ros-jazzy-ros-gz python3-colcon-common-extensions python3-rosdep cmake
 git clone https://github.com/nahee2345/urrc_2.git
 cd urrc_2
-python3 verify_release.py
+sudo apt update
+sudo apt install -y ros-jazzy-ros-gz python3-colcon-common-extensions cmake g++ libgz-sim8-dev
 ```
 
-GitHub의 Download ZIP으로 받은 경우 압축 해제된 폴더에서 실행하시면 됩니다. 폴더명이나 사용자명이 달라도 됩니다. `build/`, `install/`, `log/`를 다른 PC에서 복사하지 않습니다.
+## 실행 (4가지 모드)
 
-## 신호등 포함 몬자 실행
+| 모드 | 명령어 |
+|---|---|
+| **연습차 2대 + F1 출발 신호** (기본) | `bash run_practice.sh` |
+| 연습차 2대 + 신호등 미작동 | `bash run_practice.sh --no-lights` |
+| 연습차 없음 + F1 출발 신호 | `bash run_practice.sh --cars 0` |
+| 연습차 없음 + 신호등 미작동 | `bash run_practice.sh --cars 0 --no-lights` |
 
-```bash
-bash run_monza.sh --view grid
-```
+- **신호등 작동**: 연습차 생성 후 빨간불 5개가 모두 켜지고, 불규칙한 간격으로 **하나씩 꺼집니다**. 모두 꺼지면 연습차량이 출발하며 시퀀스는 시작 시 **한 번만** 실행됩니다. 서비스 지연 시 실제 소등시간은 6초를 넘을 수 있습니다.
+- **신호등 미작동**: 출발 빨간불 시퀀스가 실행되지 않으며 연습차가 바로 주행합니다. 신호등 구조물은 보일 수 있습니다.
+- 연습차 A: **2번 그리드**, 파란색, **0.7 m/s**. 연습차 B: **20번 그리드**, 주황색, **1.4 m/s**.
+- 선택: `--cars 0|1|2`, `--speed-a 0.7`, `--speed-b 1.4`, `--view overview`, `--dry-run`.
+- 종료: 실행 터미널에서 `Ctrl+C`.
 
-새 터미널에서 같은 저장소 폴더로 이동하여 신호등을 확인합니다.
+## 내 자율주행 차량 개발
 
-```bash
-bash test_lights.sh sequence  # 1초마다 5개 점등 → 3초 유지 → 소등
-bash test_lights.sh on        # 5개 LED를 계속 켜 놓기
-bash test_lights.sh off       # 모두 소등
-```
+1. 저장소의 `race/README_KO.md`를 읽고, **별도 ROS 2 패키지**에서 차량 모델(`model.sdf` 또는 URDF), LiDAR, 구동·조향 제어기, 자율주행 알고리즘을 만드세요. `race/entry_template.json`을 복사해 `race_entry.json`을 작성하세요.
+2. **최대 차량 크기: 길이 0.55 × 폭 0.25 × 높이 0.18 m** (바퀴·센서·collision 등 돌출부 포함). 전륜 조향각 ±35° 이내. +X 전방·+Y 왼쪽·+Z 위쪽.
+3. 참가 차량 스폰은 본인이 직접 진행합니다. **몬자 1번 그리드 중앙**: `x=0.37867`, `y=-2.05604`, 노면 `z=1.20353`, `yaw=1.45738 rad`. 모델 원점 높이 보정 기본값은 `0.04 m`이지만 실제 바퀴 접촉을 확인해 조정하세요.
+4. 참가 차량은 자체 LiDAR로 주행하며, 카메라는 현행 대회 규정상 출발 신호 확인용입니다. 속도 `std_msgs/msg/Float32`(m/s), 조향 `std_msgs/msg/Float32`(rad, **양수 우회전**), LiDAR `sensor_msgs/msg/LaserScan`, 출발·정지 `/race/start/<entry_id>`(`std_msgs/msg/Bool`), `use_sim_time=true`. 팀별 고유 토픽 이름을 사용하세요.
+5. 연습용 차량은 연습 환경의 장애물이며, **참가자 차량의 자동 스폰 및 알고리즘 실행은 하지 않습니다**. 패키지 제작 후 본인이 Gazebo에 차량을 생성하고 ROS launch를 실행해 회피를 시험하세요.
 
-맵을 실행하기만 하면 출발등은 꺼져 있습니다. 네모 렌즈 자체가 발광하며 초록등은 없습니다. 이 테스트는 참가 차량에 출발 Bool을 보내지 않습니다.
-두 터미널에서 `GZ_PARTITION`을 별도로 지정했다면 같은 값이어야 합니다. 지정하지 않으면 실행기와 테스트가 같은 사용자별 값을 사용합니다.
+### 참고
 
-전체 맵 보기: `bash run_monza.sh`. 신호등 없는 월드가 필요하면 `bash run_monza.sh --no-lights`입니다. 차량은 맵 실행만으로 자동 생성되지 않습니다.
-
-## 차량 크기와 1번 스폰
-
-- 최대 크기: **0.55 × 0.25 × 0.18 m (길이 × 폭 × 높이)**, 모든 돌출부 포함.
-- 1번 스폰: **x=0.37867, y=-2.05604, z=1.24353 m, yaw=1.45738 rad**.
-- 기본 z는 노면 1.20353 m + `spawn_z_offset_m=0.04 m`입니다.
-- 기준 데이터: `src/urrc_track_gazebo/tracks/processed/monza.json`의 첫 grid.
-- 차량은 +X 전방/+Y 왼쪽/+Z 위쪽, LiDAR 전용 주행입니다.
-
-## 제출물로 연습 예선 확인
-
-팀 폴더 또는 ZIP을 `race/inbox/`에 넣고 실행합니다. 앞서 실행한 연습 Gazebo는 먼저 종료합니다.
-
-```bash
-source /opt/ros/jazzy/setup.bash
-export ROS_DOMAIN_ID=12
-bash competition.sh prepare
-bash competition.sh new-event --track monza
-bash competition.sh qualifying
-```
-
-실행기가 차량을 1번 그리드에 스폰하고 팀 launch를 실행한 뒤 신호등·출발 신호·2랩 계측을 진행합니다. 참가 launch가 LiDAR bridge와 제어 어댑터를 포함해야 합니다. 팀 패키지별 추가 의존성은 운영자와 사전에 설치합니다.
-
-## 무엇을 제출해야 하나요?
-
-**차량 URDF/SDF + 모든 메시·센서/제어 설정 + LiDAR 주행 알고리즘 + ROS 패키지 + race_entry.json**을 제출합니다.
-
-[제출 구조·토픽 타입·경로 규칙·주의사항·경기 규정](race/README_KO.md)을 반드시 따라 주세요.
-[설정 예제](race/entry_template.json)를 대표 패키지에도 넣으면 src 또는 패키지만 옮겨 접수할 수 있습니다.
-[pack_entry.py](race/scripts/pack_entry.py)로 제출 ZIP을 만들 수 있습니다.
-
-## 새로 다운로드한 파일 확인
-
-```bash
-python3 verify_release.py
-bash run_monza.sh --view grid
-# 별도 터미널
-bash test_lights.sh sequence
-```
-
-`verify_release.py`는 파일 체크섬, 몬자 전용 구성, 스폰·LED·리소스 참조와 PC 절대 경로를 검사합니다. 실제 Gazebo 렌더링과 참가 차량 주행은 실행 PC에서 확인해야 합니다.
+- `bash run_monza.sh --view grid`: 기존 몬자 맵 실행.
+- `race/README_KO.md`: 참가 제출물 형식·실행 계약·세부 규칙.
+- `python3 verify_release.py`: 기존 배포 원본 검증. README 및 연습 기능 추가 후에는 체크섬/검사 규칙의 갱신이 필요할 수 있습니다.
+- 연습용 두 차량은 **시뮬레이터 내부에서 위치를 연속 갱신하는 운동학적 모델**입니다. 바퀴 힘·제동·LiDAR 기반 자체 우회 알고리즘은 구현되어 있지 않습니다. 따라서 실제 물리 충돌·회피 성능 검증을 대체하지 못합니다.
