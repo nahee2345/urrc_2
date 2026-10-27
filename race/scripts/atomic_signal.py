@@ -54,12 +54,16 @@ def _create(track, root):
         link.append(active)
     root_xml = ET.Element("sdf", version="1.9")
     root_xml.append(model)
-    with tempfile.TemporaryDirectory(prefix="urrc-signal-") as tmp:
-        filename = Path(tmp) / "signal_active.sdf"
-        ET.ElementTree(root_xml).write(filename, encoding="utf-8", xml_declaration=True)
-        # Gazebo service must read the file before this context closes.
-        _call(track, "create", "gz.msgs.EntityFactory",
-              "sdf_filename: " + json.dumps(str(filename)))
+    # Gazebo may queue the SDF read for a later simulation iteration, AFTER
+    # the create-service response. Retain this model file until process exit.
+    import atexit
+    with tempfile.NamedTemporaryFile(prefix="urrc-signal-", suffix=".sdf",
+                                     delete=False) as temp:
+        filename = Path(temp.name)
+    atexit.register(lambda path=filename: path.unlink(missing_ok=True))
+    ET.ElementTree(root_xml).write(filename, encoding="utf-8", xml_declaration=True)
+    _call(track, "create", "gz.msgs.EntityFactory",
+          "sdf_filename: " + json.dumps(str(filename)))
     time.sleep(0.35)
 
 
