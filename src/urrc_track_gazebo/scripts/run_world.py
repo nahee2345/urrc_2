@@ -36,6 +36,8 @@ def run(args=None):
     parser = argparse.ArgumentParser(description="URRC Monza 1/5 circuit")
     parser.add_argument("track", choices=TRACKS)
     parser.add_argument("--no-lights", action="store_true", help="Open the world without the start gantry")
+    parser.add_argument("--no-auto-start", action="store_true",
+                        help="Leave red lamps dark until manual test_lights.sh command")
     parser.add_argument("--server", action="store_true", help="Server only, no GUI")
     parser.add_argument("--view", choices=("overview", "grid"), default="overview")
     parser.add_argument("--iterations", type=int, help="Stop after this many simulation iterations")
@@ -81,6 +83,18 @@ def run(args=None):
         log_dir.mkdir(parents=True, exist_ok=True)
         (log_dir / "last_run.json").write_text(json.dumps({"track": name, "command": cmd}, indent=2) + "\n")
         process = subprocess.Popen(cmd, env=env, start_new_session=True)
+        # Bare map launch: automatically trigger lights after Gazebo is ready,
+        # like the working v10.8 venue runner. --no-lights suppresses all.
+        lights_process = None
+        if not opts.no_lights and not opts.no_auto_start and opts.iterations is None:
+            auto_script = package / "scripts" / "traffic_lights_v10.py"
+            with (log_dir / "lights_v10.log").open("w") as log:
+                lights_process = subprocess.Popen(
+                    [sys.executable, str(auto_script), "--track", name],
+                    env=env, stdout=log, stderr=subprocess.STDOUT,
+                    start_new_session=True)
+            print("[URRC] Automatic 5-red sequence scheduled after Gazebo readiness.",
+                  "Log:", log_dir / "lights_v10.log", flush=True)
         def stop(signum, frame):
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGINT)
@@ -88,6 +102,16 @@ def run(args=None):
         try:
             return process.wait()
         finally:
+            if lights_process is not None and lights_process.poll() is None:
+                try:
+                    os.killpg(lights_process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    lights_process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    os.killpg(lights_process.pid, signal.SIGKILL)
+                    lights_process.wait()
             signal.signal(signal.SIGINT, old_int); signal.signal(signal.SIGTERM, old_term)
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGTERM)

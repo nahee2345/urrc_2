@@ -23,15 +23,15 @@ GitHub의 Download ZIP으로 받은 경우 압축 해제된 폴더에서 실행�
 bash run_monza.sh --view grid
 ```
 
-새 터미널에서 같은 저장소 폴더로 이동하여 신호등을 확인합니다.
+맵을 실행하면 Gazebo 준비 후 신호등이 **자동으로 5개 순차 점등 → 전체 일괄 소등**됩니다. 수동 재실행은 자동 시퀀스가 종료된 뒤 다른 터미널에서 진행합니다.
 
 ```bash
-bash test_lights.sh sequence  # 1초마다 5개 점등 → 3초 유지 → 소등
+bash test_lights.sh sequence  # 5개 순차 점등 → 단일 명령으로 전체 소등
 bash test_lights.sh on        # 5개 LED를 계속 켜 놓기
 bash test_lights.sh off       # 모두 소등
 ```
 
-맵을 실행하기만 하면 출발등은 꺼져 있습니다. 네모 렌즈 자체가 발광하며 초록등은 없습니다. 이 테스트는 참가 차량에 출발 Bool을 보내지 않습니다.
+맵 자동 점등을 끄고 수동 테스트만 하려면 `bash run_monza.sh --no-auto-start`를 사용하세요. 5개 임시 발광 렌즈가 원래 렌즈 위에 생성되며, 일괄 소등할 때 임시 모델 하나를 제거합니다. 차량 출발 허가와는 별개로 수동 신호등 테스트할 수 있습니다.
 두 터미널에서 `GZ_PARTITION`을 별도로 지정했다면 같은 값이어야 합니다. 지정하지 않으면 실행기와 테스트가 같은 사용자별 값을 사용합니다.
 
 전체 맵 보기: `bash run_monza.sh`. 신호등 없는 월드가 필요하면 `bash run_monza.sh --no-lights`입니다. 차량은 맵 실행만으로 자동 생성되지 않습니다.

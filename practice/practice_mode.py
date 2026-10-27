@@ -148,78 +148,44 @@ def build_plugin():
 
 
 
-# Light sequence controls the existing five material-emissive lenses on the
-# track gantry. A start-gate file is created ONLY after five verified off calls.
-def _lens_payload(index, on):
-    emission = 'r: 1 g: 0.008 b: 0.008 a: 1' if on else 'r: 0 g: 0 b: 0 a: 1'
-    return (f'name: "red_lens_{index+1}" parent_name: "gantry_visuals" '
-            'material { ambient { r: 0.12 g: 0.006 b: 0.008 a: 1 } '
-            'diffuse { r: 0.12 g: 0.006 b: 0.008 a: 1 } '
-            'specular { r: 0.02 g: 0.02 b: 0.02 a: 1 } '
-            f'emissive {{ {emission} }} }}')
-
-
-def _set_lens(index, on, env):
-    cmd = ['gz', 'service', '-s', '/world/monza/visual_config', '--reqtype', 'gz.msgs.Visual',
-           '--reptype', 'gz.msgs.Boolean', '--timeout', '1600', '--req', _lens_payload(index, on)]
-    res = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=4)
-    if res.returncode != 0 or not re.search(r'data:\s*true', res.stdout):
-        raise RuntimeError(f'신호등 {index+1}번 제어 실패: {(res.stdout + res.stderr)[-300:]}')
-
-
-def _set_all_lenses(on, env):
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        list(executor.map(lambda i: _set_lens(i, on, env), range(5)))
-
-
+# Both competition and practice modes use the SAME v10.8-compatible signal
+# controller (five sequential ON events, ONE model-remove lights-out).
+# Only write the vehicle release gate AFTER the Gazebo remove service succeeds.
 def _wait_visual_service(proc, env, timeout=30):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if proc.poll() is not None:
-            raise RuntimeError('Gazebo가 신호등 준비 이전에 종료됐습니다.')
+            raise RuntimeError('Gazebo exited before signal initialization')
         try:
-            result = subprocess.run(['gz','service','-l'], env=env, capture_output=True, text=True, timeout=4)
-            if '/world/monza/visual_config' in result.stdout.splitlines():
+            result = subprocess.run(['gz', 'service', '-l'], env=env,
+                                    capture_output=True, text=True, timeout=4)
+            topics = set(result.stdout.splitlines())
+            if (result.returncode == 0 and
+                    {'/world/monza/visual_config', '/world/monza/create',
+                     '/world/monza/remove'} <= topics):
                 return
         except subprocess.TimeoutExpired:
             pass
         time.sleep(.2)
-    raise RuntimeError('Gazebo 신호등 서비스 준비 시간 초과')
-
-
-def _random_intervals(rng):
-    # Strictly positive, non-uniform, unpredictable 5-step lights-out timeline.
-    # Reserve time for RPC latency: randomized nominal duration 2.1–3.6 s.
-    total = rng.uniform(2.1, 3.6)
-    raw = [rng.uniform(.1, 1.5) for _ in range(5)]
-    return [total * v / sum(raw) for v in raw]
+    raise RuntimeError('Gazebo visual/create/remove services not ready')
 
 
 def _light_sequence(proc, env, start_file):
-    # Fail closed: if any light command fails cars must remain stopped.
     _wait_visual_service(proc, env)
-    _set_all_lenses(True, env)
-    print('[URRC] 빨간불 5개 점등 완료; 불규칙한 소등 시퀀스 시작', flush=True)
-    rng = random.SystemRandom()
-    elapsed_start = time.monotonic()
-    try:
-        for n, delay in zip(range(4, -1, -1), _random_intervals(rng)):
-            time.sleep(delay)
-            if proc.poll() is not None:
-                raise RuntimeError('신호등 도중 Gazebo가 종료됐습니다.')
-            _set_lens(n, False, env)
-            print(f'[URRC] 빨간불 {n+1}번 소등 (남은 불 {n}개)',flush=True)
-        actual = time.monotonic() - elapsed_start
-        if actual > 6.0:
-            print(f'[URRC WARNING] 요청 처리 지연으로 6초 초과 ({actual:.2f}초)',flush=True)
-        start_file.write_text('GO\n')
-        print('[URRC] 모든 빨간불 소등 확인; 차량 출발 허용',flush=True)
-    except Exception:
-        # Attempt to restore five dark lenses, do not release vehicles.
-        try: _set_all_lenses(False, env)
-        except Exception: pass
-        raise
-
+    if proc.poll() is not None:
+        raise RuntimeError('Gazebo exited before signal start')
+    scripts = ROOT / 'race' / 'scripts'
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    from atomic_signal import sequence
+    print('[URRC] v10.8 shared signal: 5 sequential reds -> single-request OFF',
+          flush=True)
+    sequence('monza', ROOT, env=env)
+    if proc.poll() is not None:
+        raise RuntimeError('Gazebo exited before verified lights-out')
+    # Retain existing gate semantics: motion only after successful lights-out.
+    start_file.write_text('GO\n', encoding='utf-8')
+    print('[URRC] All five reds OFF; vehicle release authorized', flush=True)
 
 def run():
     ap = argparse.ArgumentParser(description='몬자 연습: Gazebo 내부 매 시뮬레이션 주기 차량 이동')
