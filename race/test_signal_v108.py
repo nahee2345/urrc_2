@@ -1,9 +1,11 @@
-"""Signal-only regression tests: copied v10.8 geometry and shared practice gate.
+"""Offline regression for exact urrc_f1_ws v10.8 start-signal logic.
 
-No Gazebo executable required; these tests DO NOT replace a Gazebo GUI test.
+Visual rendering and camera framerate must still be checked in Gazebo.
 """
+import hashlib
 import importlib.util
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import types
@@ -13,116 +15,129 @@ import xml.etree.ElementTree as ET
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"race"/"scripts"))
-import atomic_signal as lights
+import atomic_signal as bridge
+
+SCRIPT=ROOT/"src/urrc_track_gazebo/scripts/traffic_lights_v10.py"
+WORLD=ROOT/"src/urrc_track_gazebo/worlds/monza_race.sdf"
+ACTIVE=ROOT/"src/urrc_track_gazebo/worlds/monza_signal_active.sdf"
+F1_GITHUB_BLOB="8bfb8a44b74e42c3b71723aea38ba7aa0ce9d614"
+
+
+def source():
+    return bridge._module(ROOT)
+
 
 class StartSignalTest(unittest.TestCase):
-    def test_template_has_exactly_five_independent_visuals(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root=Path(temp)
-            dest=root/"src/urrc_track_gazebo/worlds"
-            dest.mkdir(parents=True)
-            gate=ET.Element("model",name="race_start_gantry")
-            ET.SubElement(gate,"pose").text="1 2 3 0 0 1"
-            link=ET.SubElement(gate,"link",name="gantry_visuals")
-            for n in range(1,6):
-                visual=ET.SubElement(link,"visual",name=f"red_lens_{n}")
-                ET.SubElement(visual,"pose").text=f"-0.148 {(n-3)*.16} 1.96 0 -.261799 0"
-                ET.SubElement(ET.SubElement(ET.SubElement(visual,"geometry"),"box"),"size").text=".025 .11 .12"
-                mat=ET.SubElement(visual,"material")
-                ET.SubElement(mat,"diffuse").text=".12 .006 .008 1"
-            sdf=ET.Element("sdf",version="1.9")
-            world=ET.SubElement(sdf,"world",name="monza")
-            world.append(gate)
-            ET.ElementTree(sdf).write(dest/"monza_race.sdf")
-            fn=lights._active_template(root,"monza")
-            active=ET.parse(fn)
-            model=active.find("model")
-            self.assertEqual(model.attrib["name"],"urrc_start_signal_active")
-            self.assertEqual(model.findtext("pose"),"1 2 3 0 0 1")
-            visuals=active.findall(".//link[@name='signal_active_visuals']/visual")
-            self.assertEqual([x.attrib["name"] for x in visuals],
-                [f"active_red_lens_{i}" for i in range(1,6)])
-            for n,v in enumerate(visuals,1):
-                self.assertEqual(v.findtext("geometry/box/size"),".008 .110 .120")
-                self.assertEqual(v.findtext("material/emissive"),"0 0 0 1")
-                self.assertAlmostEqual(float(v.findtext("pose").split()[0]),-.168)
-                self.assertAlmostEqual(float(v.findtext("pose").split()[1]),(n-3)*.16)
-            self.assertEqual(len(ET.parse(dest/"monza_race.sdf").findall(".//visual")),5)
+    def test_exact_f1_ws_source_code(self):
+        contents=SCRIPT.read_bytes()
+        digest=hashlib.sha1(b"blob "+str(len(contents)).encode()+b"\0"+contents).hexdigest()
+        self.assertEqual(digest,F1_GITHUB_BLOB)
 
-    def test_500_random_schedules_each_keep_strict_3_to_6_seconds(self):
-        totals=[]
+    def test_off_lenses_and_overlay_geometry(self):
+        gate=ET.parse(WORLD).find(".//model[@name='race_start_gantry']")
+        active=ET.parse(ACTIVE).find(".//model[@name='urrc_start_signal_active']")
+        self.assertIsNotNone(gate)
+        self.assertIsNotNone(active)
+        self.assertEqual(gate.findtext("pose"),active.findtext("pose"))
+        base=[gate.find(f"link[@name='gantry_visuals']/visual[@name='red_lens_{i}']") for i in range(1,6)]
+        lit=[active.find(f"link[@name='signal_active_visuals']/visual[@name='active_red_lens_{i}']") for i in range(1,6)]
+        self.assertTrue(all(x is not None for x in base+lit))
+        for b,a in zip(base,lit):
+            self.assertEqual(b.findtext("material/emissive"),"0 0 0 1")
+            self.assertEqual(b.findtext("material/ambient"),"0.015 0.005 0.006 1")
+            self.assertEqual(a.findtext("material/emissive"),"0 0 0 1")
+            self.assertEqual(a.findtext("geometry/box/size"),".008 .110 .120")
+            self.assertAlmostEqual(float(a.findtext("pose").split()[0]),float(b.findtext("pose").split()[0])-.020)
+            self.assertAlmostEqual(float(a.findtext("pose").split()[1]),float(b.findtext("pose").split()[1]))
+        self.assertEqual(len(active.findall(".//visual")),5)
+
+    def test_500_random_schedules_3_to_6s(self):
+        m=source()
+        durations=set()
         for seed in range(500):
-            gaps,hold=lights.schedule(seed)
-            self.assertEqual(len(gaps),4)
-            self.assertTrue(all(g>=.35 for g in gaps))
-            self.assertTrue(.40<=hold<=.90)
-            total=sum(gaps)+hold
-            self.assertGreater(total,3)
-            self.assertLess(total,6)
-            totals.append(round(total,4))
-        self.assertGreater(len(set(totals)),450)
+            plan=m.schedule(seed=seed)
+            on=plan["on_s"]
+            self.assertEqual(len(on),5)
+            self.assertTrue(all(on[i]<on[i+1] for i in range(4)))
+            self.assertLess(on[4],plan["off_s"])
+            duration=plan["target_first_on_to_off_s"]
+            self.assertGreater(duration,3)
+            self.assertLess(duration,6)
+            durations.add(round(duration,4))
+        self.assertGreater(len(durations),450)
 
-    def test_five_individual_on_then_only_one_all_off(self):
-        events=[]
-        def on(track,index,enabled,root,env=None):
-            self.assertTrue(enabled)
-            events.append(("ON",index))
-            return lights.time.monotonic()
-        def off(track,root,env=None,missing_ok=True):
-            events.append(("OFF",missing_ok))
-            return True
-        with patch.object(lights,"lamp",side_effect=on), \
-             patch.object(lights,"all_off",side_effect=off), \
-             patch.object(lights.time,"sleep",return_value=None):
-            lights.sequence("monza",ROOT,seed=16)
-        self.assertEqual([e for e in events if e[0]=="ON"],
-                         [("ON",i) for i in range(5)])
-        self.assertEqual(events[0][0],"OFF")
-        self.assertEqual(events[-1],("OFF",False))
-        self.assertEqual(sum(e[0]=="OFF" for e in events),2)  # reset + final
-
-    def test_failed_off_never_emits_success(self):
+    def test_off_is_single_gazebo_entity_removal(self):
+        m=source()
         logs=[]
-        def off(track,root,env=None,missing_ok=True):
-            logs.append(missing_ok)
-            if not missing_ok:
-                raise RuntimeError("Gazebo removal failed")
+        def fake_call(track,service,kind,payload,optional=False):
+            logs.append((track,service,kind,payload,optional))
             return True
-        with patch.object(lights,"lamp",return_value=lights.time.monotonic()), \
-             patch.object(lights,"all_off",side_effect=off), \
-             patch.object(lights.time,"sleep",return_value=None):
+        with patch.object(m,"_call",side_effect=fake_call),patch.object(m.time,"monotonic",return_value=4.0):
+            m._off("monza")
+        self.assertEqual(len(logs),1)
+        self.assertEqual(logs[0][1:3],("remove","gz.msgs.Entity"))
+        self.assertIn('name: "urrc_start_signal_active" type: 2',logs[0][3])
+
+    def test_five_ascending_on_then_one_off(self):
+        m=source()
+        events=[]
+        with patch.object(m,"wait_ready",return_value=None), \
+             patch.object(m.shutil,"which",return_value="/usr/bin/gz"), \
+             patch.object(m,"_create",side_effect=lambda t:events.append(("CREATE",t))), \
+             patch.object(m,"_red",side_effect=lambda t,i:(events.append(("ON",i)) or m.time.monotonic())), \
+             patch.object(m,"_off",side_effect=lambda t:(events.append(("OFF",t)) or m.time.monotonic())), \
+             patch.object(m.time,"sleep",return_value=None):
+            m.run("monza",seed=42,check_cameras=False)
+        self.assertEqual(events[0],("CREATE","monza"))
+        self.assertEqual(events[1:6],[("ON",i) for i in range(1,6)])
+        self.assertEqual(events[6:], [("OFF","monza")])
+
+    def test_practice_and_race_use_canonical_script(self):
+        with patch.object(bridge.subprocess,"run",return_value=types.SimpleNamespace(returncode=0)) as mock:
+            bridge.sequence("monza",ROOT,env={"GZ_PARTITION":"testing"},seed=31)
+        cmd=mock.call_args.args[0]
+        self.assertEqual(Path(cmd[1]),SCRIPT)
+        self.assertIn("--skip-camera-check",cmd)
+        self.assertEqual(cmd[cmd.index("--seed")+1],"31")
+        self.assertEqual(mock.call_args.kwargs["env"]["GZ_PARTITION"],"testing")
+        with patch.object(bridge.subprocess,"run",return_value=types.SimpleNamespace(returncode=2)):
             with self.assertRaises(RuntimeError):
-                lights.sequence("monza",ROOT,seed=1)
-        self.assertEqual(logs,[True,False,True])
+                bridge.sequence("monza",ROOT)
 
-    def test_partition_environment_forwarded_to_gazebo(self):
-        env={"GZ_PARTITION":"different_partition"}
-        result=types.SimpleNamespace(returncode=0,stdout="data: true",stderr="")
-        with patch.object(lights.subprocess,"run",return_value=result) as call:
-            lights._call("monza","visual_config","gz.msgs.Visual","name: \"test\"",
-                        env=env)
-        self.assertIs(call.call_args.kwargs["env"],env)
-
-    def test_practice_releases_only_after_shared_sequence(self):
-        file_path=ROOT/"practice"/"practice_mode.py"
-        spec=importlib.util.spec_from_file_location("urrc_practice_under_test",file_path)
-        module=importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        proc=types.SimpleNamespace(poll=lambda:None)
+    def test_practice_release_only_after_success(self):
+        file=ROOT/"practice/practice_mode.py"
+        spec=importlib.util.spec_from_file_location("practice_for_signal_test",file)
+        p=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(p)
+        running=types.SimpleNamespace(poll=lambda:None)
         env={"GZ_PARTITION":"practice_test"}
         with tempfile.TemporaryDirectory() as t:
-            flag=Path(t)/"GO.flag"
-            with patch.object(module,"_wait_visual_service"), \
-                 patch.object(lights,"sequence",return_value=4.2) as seq:
-                module._light_sequence(proc,env,flag)
-                self.assertEqual(flag.read_text(),"GO\n")
-                self.assertIs(seq.call_args.kwargs["env"],env)
-            flag.unlink()
-            with patch.object(module,"_wait_visual_service"), \
-                 patch.object(lights,"sequence",side_effect=RuntimeError("light off failed")):
+            gate=Path(t)/"start.flag"
+            with patch.object(p,"_wait_visual_service"), \
+                 patch.object(bridge,"sequence",return_value=0) as seq:
+                p._light_sequence(running,env,gate)
+            self.assertEqual(gate.read_text(),"GO\n")
+            self.assertIs(seq.call_args.kwargs["env"],env)
+            gate.unlink()
+            with patch.object(p,"_wait_visual_service"), \
+                 patch.object(bridge,"sequence",side_effect=RuntimeError("off service failed")):
                 with self.assertRaises(RuntimeError):
-                    module._light_sequence(proc,env,flag)
-                self.assertFalse(flag.exists())
+                    p._light_sequence(running,env,gate)
+            self.assertFalse(gate.exists())
+
+    def test_manual_off_uses_same_source(self):
+        m=source()
+        with patch.object(m,"_call",return_value=True) as called:
+            bridge.all_off("monza",ROOT)
+        self.assertEqual(called.call_args.args[1],"remove")
+        self.assertTrue(called.call_args.kwargs["optional"])
+
+    def test_bare_world_skips_camera_gate_only(self):
+        runner=(ROOT/"src/urrc_track_gazebo/scripts/run_world.py").read_text()
+        self.assertIn('"--skip-camera-check"',runner)
+        self.assertIn('traffic_lights_v10.py',runner)
+        self.assertNotIn('range(4, -1, -1)',runner)
+
 
 if __name__=="__main__":
     unittest.main()

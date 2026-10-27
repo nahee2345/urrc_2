@@ -16,7 +16,7 @@ def main():
     config=json.loads((ROOT/'release.json').read_text())
     package=ROOT/'src/urrc_track_gazebo'
     tracks=config['tracks']
-    actual={p.stem for p in (package/'worlds').glob('*.sdf') if not p.stem.endswith('_race')}
+    actual={p.stem for p in (package/'worlds').glob('*.sdf') if not p.stem.endswith(('_race', '_signal_active'))}
     if actual!=set(tracks):raise ValueError(f'배포 맵 목록 불일치: {actual}')
     count=0
     for line in (ROOT/'SHA256SUMS').read_text().splitlines():

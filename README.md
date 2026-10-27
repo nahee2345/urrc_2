@@ -40,3 +40,9 @@ sudo apt install -y ros-jazzy-ros-gz python3-colcon-common-extensions cmake g++ 
 - `race/README_KO.md`: 참가 제출물 형식·실행 계약·세부 규칙.
 - `python3 verify_release.py`: 기존 배포 원본 검증. README 및 연습 기능 추가 후에는 체크섬/검사 규칙의 갱신이 필요할 수 있습니다.
 - 연습용 두 차량은 **시뮬레이터 내부에서 위치를 연속 갱신하는 운동학적 모델**입니다. 바퀴 힘·제동·LiDAR 기반 자체 우회 알고리즘은 구현되어 있지 않습니다. 따라서 실제 물리 충돌·회피 성능 검증을 대체하지 못합니다.
+
+### 출발 신호 v10.8 동기화 (urrc_f1_ws와 동일 제어 코드)
+
+신호등 제어 프로그램 `src/urrc_track_gazebo/scripts/traffic_lights_v10.py`는 `urrc_f1_ws`의 동일 파일을 그대로 사용합니다. 1번부터 5번까지 **한 개씩 임의 간격 점등**한 뒤 **5개 발광 렌즈가 속한 단일 모델**을 제거하여 한꺼번에 소등합니다. 자동 신호등은 월드 및 신호 제어 서비스 준비 후 시작합니다. 기본 연습 차량 2대는 `bash run_practice.sh --cars 2 --lights`로 실행하고, 차량 없는 월드는 `bash run_monza.sh --view grid`로 실행합니다. `urrc_2`에는 v10.8 관전 카메라 센서가 없으므로 카메라 준비 검사만 생략합니다.
+
+정상 소스 확인: `git rev-parse HEAD`, `python3 -m unittest discover -s race -p 'test_signal_v108.py' -v`, `python3 verify_release.py`. 이전 설치 폴더를 별도로 종료/삭제하고 새 GitHub clone에서 실행해야 구형 신호 제어 코드가 섞이지 않습니다. 실제 Gazebo에서의 동시 화면 소등과 3~6초 준수는 렌더러 및 명령 응답 지연에 영향을 받으므로 로그를 확인하세요.

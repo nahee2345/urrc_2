@@ -90,7 +90,7 @@ def run(args=None):
             auto_script = package / "scripts" / "traffic_lights_v10.py"
             with (log_dir / "lights_v10.log").open("w") as log:
                 lights_process = subprocess.Popen(
-                    [sys.executable, str(auto_script), "--track", name],
+                    [sys.executable, str(auto_script), "--track", name, "--skip-camera-check"],
                     env=env, stdout=log, stderr=subprocess.STDOUT,
                     start_new_session=True)
             print("[URRC] Automatic 5-red sequence scheduled after Gazebo readiness.",

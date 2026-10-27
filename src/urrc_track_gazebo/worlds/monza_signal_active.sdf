@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sdf version="1.9">
+  <model name="urrc_start_signal_active">
+    <static>true</static>
+    <pose>0.17135067 1.63906771 1.22070984 0 0 1.46663315</pose>
+    <link name="signal_active_visuals">
+      <visual name="active_red_lens_1">
+        <pose>-0.1680000 -0.3200000 1.9600000 0.0000000 -0.2617990 0.0000000</pose>
+        <geometry><box><size>.008 .110 .120</size></box></geometry>
+        <material>
+          <ambient>0.015 0.005 0.006 1</ambient>
+          <diffuse>0.015 0.005 0.006 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+          <emissive>0 0 0 1</emissive>
+        </material>
+      </visual>
+      <visual name="active_red_lens_2">
+        <pose>-0.1680000 -0.1600000 1.9600000 0.0000000 -0.2617990 0.0000000</pose>
+        <geometry><box><size>.008 .110 .120</size></box></geometry>
+        <material>
+          <ambient>0.015 0.005 0.006 1</ambient>
+          <diffuse>0.015 0.005 0.006 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+          <emissive>0 0 0 1</emissive>
+        </material>
+      </visual>
+      <visual name="active_red_lens_3">
+        <pose>-0.1680000 0.0000000 1.9600000 0.0000000 -0.2617990 0.0000000</pose>
+        <geometry><box><size>.008 .110 .120</size></box></geometry>
+        <material>
+          <ambient>0.015 0.005 0.006 1</ambient>
+          <diffuse>0.015 0.005 0.006 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+          <emissive>0 0 0 1</emissive>
+        </material>
+      </visual>
+      <visual name="active_red_lens_4">
+        <pose>-0.1680000 0.1600000 1.9600000 0.0000000 -0.2617990 0.0000000</pose>
+        <geometry><box><size>.008 .110 .120</size></box></geometry>
+        <material>
+          <ambient>0.015 0.005 0.006 1</ambient>
+          <diffuse>0.015 0.005 0.006 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+          <emissive>0 0 0 1</emissive>
+        </material>
+      </visual>
+      <visual name="active_red_lens_5">
+        <pose>-0.1680000 0.3200000 1.9600000 0.0000000 -0.2617990 0.0000000</pose>
+        <geometry><box><size>.008 .110 .120</size></box></geometry>
+        <material>
+          <ambient>0.015 0.005 0.006 1</ambient>
+          <diffuse>0.015 0.005 0.006 1</diffuse>
+          <specular>0.02 0.02 0.02 1</specular>
+          <emissive>0 0 0 1</emissive>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

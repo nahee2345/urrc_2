@@ -97,10 +97,10 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
-          </material>
+          <emissive>0 0 0 1</emissive></material>
         </visual>
         <visual name="red_lens_2">
           <pose>-0.148 -0.1600 1.96 0 -0.261799 0</pose>
@@ -110,10 +110,10 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
-          </material>
+          <emissive>0 0 0 1</emissive></material>
         </visual>
         <visual name="red_lens_3">
           <pose>-0.148 0.0000 1.96 0 -0.261799 0</pose>
@@ -123,10 +123,10 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
-          </material>
+          <emissive>0 0 0 1</emissive></material>
         </visual>
         <visual name="red_lens_4">
           <pose>-0.148 0.1600 1.96 0 -0.261799 0</pose>
@@ -136,10 +136,10 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
-          </material>
+          <emissive>0 0 0 1</emissive></material>
         </visual>
         <visual name="red_lens_5">
           <pose>-0.148 0.3200 1.96 0 -0.261799 0</pose>
@@ -149,10 +149,10 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
-          </material>
+          <emissive>0 0 0 1</emissive></material>
         </visual>
       </link>
     </model>
