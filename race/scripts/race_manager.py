@@ -171,26 +171,20 @@ def gz_service(track, service, reqtype, request, env=None):
 
 
 def light_request(track,index,on,root):
-    # Change the lens material itself so the rectangular LED glows without
-    # washing red light across the gantry and track.
-    emissive=("r: 1 g: 0.008 b: 0.008 a: 1" if on
-              else "r: 0 g: 0 b: 0 a: 1")
-    req=(f'name: "red_lens_{index+1}" parent_name: "gantry_visuals" '
-         'material { ambient { r: 0.12 g: 0.006 b: 0.008 a: 1 } '
-         'diffuse { r: 0.12 g: 0.006 b: 0.008 a: 1 } '
-         'specular { r: 0.02 g: 0.02 b: 0.02 a: 1 } '
-         f'emissive {{ {emissive} }} }}')
-    gz_service(track,"visual_config","gz.msgs.Visual",req)
+    from atomic_signal import lamp
+    return lamp(track,index,on,root)
+
+
 def lights_all(track,root,on):
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        futures=[pool.submit(light_request,track,i,on,root) for i in range(5)]
-        for future in futures: future.result()
+    from atomic_signal import lights_all as atomic_lights_all
+    return atomic_lights_all(track,root,on)
+
+
 def start_sequence(track,root,entrants,delay):
+    from atomic_signal import sequence
     publish_start_batch(entrants,False)
-    lights_all(track,root,False)
-    for i in range(5): light_request(track,i,True,root); time.sleep(1.0)
-    time.sleep(delay)
-    lights_all(track,root,False)
+    # v10.8 signal only: random 3..6s and single-entity lights-out.
+    sequence(track,root)
 
 def start_world(root,track,event):
     pkg=root/"src/urrc_track_gazebo"; env=os.environ.copy()
