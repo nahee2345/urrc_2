@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(urrc_track_gazebo NONE)
 find_package(ament_cmake QUIET)
-install(DIRECTORY worlds models tracks launch docs urrc_tracks
+install(DIRECTORY worlds models tracks launch docs urrc_tracks assets
         DESTINATION share/${PROJECT_NAME}
         PATTERN "__pycache__" EXCLUDE)
 install(DIRECTORY scripts/ DESTINATION share/${PROJECT_NAME}/scripts

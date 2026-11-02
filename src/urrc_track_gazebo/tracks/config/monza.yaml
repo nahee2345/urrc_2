@@ -43,7 +43,7 @@ elevation:
   reference_range_real_m: 12.8
   reference_url: https://www.formula1.com/en/latest/article/highs-and-lows-which-f1-track-has-the-most-elevation-changes-.7I9JEcBw3R2AqXbnJ6hyvc.7I9JEcBw3R2AqXbnJ6hyvc
 wall:
-  height_m: 0.8
+  height_m: 0.3
   thickness_m: 0.12
   color_block_m: 2.0
 grid:

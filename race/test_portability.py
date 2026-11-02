@@ -36,35 +36,23 @@ def test_submission_layouts_are_portable(tmp_path,style):
 
 def test_spawning_passes_gazebo_yaw_flag(tmp_path):
     entry={'entry_id':'team01','_model':str(tmp_path/'car.urdf')}
-    with patch.object(race.subprocess,'run') as run:
+    sdf='<sdf version="1.9"><model name="car"><link name="base_link"/></model></sdf>'
+    with patch.object(race.subprocess,'run',return_value=SimpleNamespace(stdout=sdf)) as run:
         race.spawn(tmp_path,'spa',entry,{'road_z':2,'x':1,'y':3,'yaw':1.25},{'GZ_PARTITION':'test'})
     args=run.call_args.args[0]
     assert '-Y' in args and '--yaw' not in args
     assert args[args.index('-Y')+1]=='1.25'
     assert run.call_args.kwargs['env']['GZ_PARTITION']=='test'
+    # Gazebo opens sdf_filename asynchronously after the create service reply.
+    prepared=Path(entry['_prepared_model'])
+    assert prepared.is_file()
+    assert 'gz-sim-pose-publisher-system' in prepared.read_text()
+    assert '/model/team01/urrc_timing' in prepared.read_text()
 
 
 def test_lens_control_rejects_boolean_failure():
     with patch.object(race.subprocess,'run',return_value=SimpleNamespace(stdout='data: false',stderr='')):
         with pytest.raises(RuntimeError):race.light_request('monza',0,True,ROOT)
-
-
-def test_first_crossing_is_not_a_lap():
-    monitor=race.PoseLapMonitor.__new__(race.PoseLapMonitor)
-    monitor.cv=threading.Condition();monitor.x0=monitor.y0=monitor.yaw=0
-    monitor.half_width=1;monitor.sim_time=0
-    monitor.states={'team01':{'seen':True,'previous_s':-1,'laps':0,'armed':False}}
-    monitor.arm(['team01'],2)
-    def send(x,t):
-        tf=SimpleNamespace(child_frame_id='team01',transform=SimpleNamespace(translation=SimpleNamespace(x=x,y=0)),
-            header=SimpleNamespace(stamp=SimpleNamespace(sec=t,nanosec=0)))
-        monitor.pose_cb(SimpleNamespace(transforms=[tf]))
-    send(-1,1);send(1,2)
-    assert monitor.states['team01']['laps']==0
-    send(-1,3);send(1,4)
-    assert monitor.states['team01']['laps']==1
-    send(-1,5);send(1,6)
-    assert monitor.states['team01']['laps']==2
 
 
 def test_explicit_track_persists_for_final(tmp_path):

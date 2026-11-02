@@ -36,14 +36,14 @@ case "${1:-}" in
     mapfile -t BASE_PATHS < <(find "$ROOT/race/entrants" -mindepth 2 -maxdepth 2 -type d -name src -print | sort)
     if ((${#BASE_PATHS[@]} == 0)); then
       if [[ "$1" == prepare ]]; then exec python3 "$ROOT/race/scripts/race_manager.py" validate --root "$ROOT"; fi
-      exec python3 "$ROOT/race/scripts/race_manager.py" "$1" --root "$ROOT"
+      exec python3 "$ROOT/race/scripts/race_manager.py" "$1" --root "$ROOT" "${@:2}"
     fi
     colcon --log-base "$ROOT/race/log" build --base-paths "${BASE_PATHS[@]}" --build-base "$ROOT/race/build" --install-base "$ROOT/race/install" --merge-install
     source_setup "$ROOT/race/install/setup.bash"
     if [[ "$1" == prepare ]]; then exec python3 "$ROOT/race/scripts/race_manager.py" validate --root "$ROOT"; fi
-    exec python3 "$ROOT/race/scripts/race_manager.py" "$1" --root "$ROOT"
+    exec python3 "$ROOT/race/scripts/race_manager.py" "$1" --root "$ROOT" "${@:2}"
     ;;
   *)
-    echo "사용법: bash competition.sh {prepare|new-event|qualifying|final|status}" >&2; exit 2
+    echo "사용법: bash competition.sh {prepare|new-event|qualifying|final|status} [--start-mode signal|camera] [--laps 5~10 (본선)]" >&2; exit 2
     ;;
 esac

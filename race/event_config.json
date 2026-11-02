@@ -1,7 +1,14 @@
 {
-  "track_pool": ["monza"],
+  "track_pool": [
+    "monza",
+    "hungaroring"
+  ],
   "qualifying_laps": 2,
   "final_laps": 10,
+  "start_mode": "signal",
+  "checkpoint_spacing_m": 10.0,
+  "max_pose_gap_seconds": 0.05,
+  "max_pose_step_m": 3.0,
   "grid_slots": 20,
   "max_entries": 12,
   "light_count": 5,

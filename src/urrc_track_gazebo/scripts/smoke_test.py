@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-TRACKS = ("monza",)
+TRACKS = ("monza", "hungaroring")
 VARIANTS = ("practice", "race")
 
 

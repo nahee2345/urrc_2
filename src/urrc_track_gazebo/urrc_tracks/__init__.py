@@ -1,3 +1,4 @@
 """Reproducible, data-based URRC Gazebo circuit generation."""
 
-TRACKS = ("monza",)
+TRACKS = ("monza", "hungaroring")
+RANDOM_TRACKS = TRACKS[1:]

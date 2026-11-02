@@ -14,9 +14,13 @@ def generate_launch_description():
                "--view", LaunchConfiguration("view").perform(context)]
         if LaunchConfiguration("server").perform(context).lower() in ("true", "1"):
             cmd.append("--server")
+        seed = LaunchConfiguration("seed").perform(context)
+        if seed:
+            cmd += ["--seed", seed]
         return [ExecuteProcess(cmd=cmd, output="screen")]
     return LaunchDescription([
         DeclareLaunchArgument("view", default_value="overview", choices=["overview", "grid"]),
         DeclareLaunchArgument("server", default_value="false"),
+        DeclareLaunchArgument("seed", default_value=""),
         OpaqueFunction(function=start),
     ])

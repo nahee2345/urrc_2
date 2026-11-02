@@ -86,7 +86,7 @@ def write_model(path, name):
     config = ET.Element("model")
     child(config, "name", model_name); child(config, "version", "1.0")
     child(config, "sdf", "model.sdf", version="1.9")
-    child(config, "description", "1/5 circuit with 0.8m boundary walls and 20 painted grid positions.")
+    child(config, "description", "1/5 circuit with 0.3m boundary walls and 20 painted grid positions.")
     write_xml(config, path / "model.config")
 
 

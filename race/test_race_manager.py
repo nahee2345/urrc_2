@@ -64,7 +64,7 @@ def test_participant_count_rejects_more_than_twelve(tmp_path):
 def test_all_worlds_have_off_f1_lights_and_tilted_gantry():
     import xml.etree.ElementTree as ET
     package=SCRIPT.parents[2]/'src'/'urrc_track_gazebo'
-    for track in ('monza',):
+    for track in ('monza','hungaroring'):
         practice=ET.parse(package/'worlds'/f'{track}.sdf').getroot()
         assert practice.find(".//model[@name='race_start_gantry']") is None
         assert not any(l.get('name','').startswith('race_red_') for l in practice.findall('.//light'))

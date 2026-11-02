@@ -74,6 +74,8 @@ def build_one(package, name):
     (package / "docs" / f"{name}_geometry_report.json").write_text(json.dumps(report, indent=2) + "\n")
     preview(package / "docs/previews", track, road, slots)
     grid_preview(package / "docs/previews", track)
+    from .v10_assets import enhance_track
+    enhance_track(package,name)  # v10.8: preserve cameras/signals on regeneration
     print(f"{name:12s} {report['length_xy_m']:10.3f} m  {report['length_error_xy_pct']:+.3f}%  {len(v):,} road vertices", flush=True)
     return track, road
 
