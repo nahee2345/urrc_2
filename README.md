@@ -10,9 +10,15 @@
 
 ## 1. 설치 및 맵 실행
 
-처음 내려받는 경우:
+**지원 PC 환경:** Ubuntu 24.04, ROS 2 Jazzy, Gazebo Harmonic, 그래픽 출력 가능한 PC.
+Windows, macOS, 다른 ROS 2 배포판에서의 호환성은 보장하지 않습니다.
+
+처음 사용하는 PC에서는 [ROS 2 Jazzy 설치 안내](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html)에 따라 ROS 2를 설치한 후, 다음 패키지와 저장소를 준비하십시오.
 
 ```bash
+sudo apt update
+sudo apt install -y git python3 python3-colcon-common-extensions python3-rosdep ros-jazzy-ros-gz
+
 cd ~
 git clone https://github.com/nahee2345/urrc_2.git
 cd ~/urrc_2
@@ -20,9 +26,22 @@ source /opt/ros/jazzy/setup.bash
 mkdir -p src/team/team_{01..12}
 ```
 
-Git은 빈 폴더를 저장하지 않으므로 `mkdir` 명령으로 `team_01`~`team_12` 빈 폴더를 생성합니다.
+프로젝트에 추가 ROS 의존성이 필요한 경우(ROS 2 환경이 올바르게 설치되어 있다면):
 
-필요한 ROS 2 Jazzy·Gazebo Harmonic·`ros_gz` 패키지와 의존성은 각 PC에 설치되어 있어야 합니다. 이 저장소는 ROS·Gazebo 시스템 프로그램 자체를 포함하지 않습니다.
+```bash
+cd ~/urrc_2
+rosdep install --from-paths src --ignore-src -r -y
+```
+
+**다운로드가 제대로 되었는지 먼저 확인하십시오.**
+
+```bash
+cd ~/urrc_2
+test -f race_v24.sh && test -f verify_integrated_v24.sh && echo 'v24 필수 파일 확인 PASS'
+bash verify_integrated_v24.sh
+```
+
+두 명령이 실패하면 배포 파일 누락 또는 PC 환경 문제이므로 다음 단계로 진행하지 마십시오.
 
 다음 명령은 **차량 없이 맵·그리드·신호등을 확인하는 미리보기**입니다.
 
