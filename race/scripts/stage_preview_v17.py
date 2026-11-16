@@ -94,8 +94,7 @@ def preview_map(root:Path,stage:str,track:str)->int:
         raise ValueError('대회 맵 리소스 폴더가 없습니다')
     ensure_assets(root,track)
     env=os.environ.copy()
-    env['GZ_PARTITION']=f'urrc_practice_{os.getuid()}'
-    print(f"[v24 PREVIEW] 차량 수동 스폰 연결: GZ_PARTITION={env['GZ_PARTITION']}", flush=True)
+    env['GZ_PARTITION']='urrc_v19_preview_'+uuid.uuid4().hex[:10]
     old=env.get('GZ_SIM_RESOURCE_PATH','')
     env['GZ_SIM_RESOURCE_PATH']=os.pathsep.join(filter(None,[
         str(root/'src/urrc_track_gazebo/models'),old]))
