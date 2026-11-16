@@ -13,7 +13,7 @@ from shapely.geometry import LineString, Polygon
 
 def validate(package):
     reports = []
-    names = ("monza", "hungaroring")
+    names = ("monza", "spa", "monaco", "cota", "hungaroring", "baku")
     for name in names:
         model = package / "models" / ("urrc_" + name)
         meta = json.loads((package / "tracks/processed" / f"{name}.json").read_text())

@@ -14,7 +14,7 @@
     </plugin>
     <scene>
       <ambient>0.65 0.65 0.65 1</ambient>
-      <background>0 0 0 1</background>
+      <background>0.50 0.60 0.70 1</background>
       <grid>false</grid>
       <origin_visual>false</origin_visual>
       <shadows>true</shadows>
@@ -97,9 +97,10 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
+            <emissive>0 0 0 1</emissive>
           </material>
         </visual>
         <visual name="red_lens_2">
@@ -110,9 +111,10 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
+            <emissive>0 0 0 1</emissive>
           </material>
         </visual>
         <visual name="red_lens_3">
@@ -123,9 +125,10 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
+            <emissive>0 0 0 1</emissive>
           </material>
         </visual>
         <visual name="red_lens_4">
@@ -136,9 +139,10 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
+            <emissive>0 0 0 1</emissive>
           </material>
         </visual>
         <visual name="red_lens_5">
@@ -149,78 +153,14 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.12 0.006 0.008 1</ambient>
-            <diffuse>0.12 0.006 0.008 1</diffuse>
+            <ambient>0.015 0.005 0.006 1</ambient>
+            <diffuse>0.015 0.005 0.006 1</diffuse>
             <specular>0.02 0.02 0.02 1</specular>
+            <emissive>0 0 0 1</emissive>
           </material>
         </visual>
       </link>
     </model>
-    <light name="race_red_1" type="point">
-      <pose>-0.97556625 1.18349926 8.31252082 0 0 0</pose>
-      <diffuse>1 0.01 0.01 1</diffuse>
-      <specular>1 0.02 0.02 1</specular>
-      <intensity>0</intensity>
-      <cast_shadows>false</cast_shadows>
-      <attenuation>
-        <range>8</range>
-        <constant>1</constant>
-        <linear>.15</linear>
-        <quadratic>.01</quadratic>
-      </attenuation>
-    </light>
-    <light name="race_red_2" type="point">
-      <pose>-1.07507774 1.05820974 8.31252082 0 0 0</pose>
-      <diffuse>1 0.01 0.01 1</diffuse>
-      <specular>1 0.02 0.02 1</specular>
-      <intensity>0</intensity>
-      <cast_shadows>false</cast_shadows>
-      <attenuation>
-        <range>8</range>
-        <constant>1</constant>
-        <linear>.15</linear>
-        <quadratic>.01</quadratic>
-      </attenuation>
-    </light>
-    <light name="race_red_3" type="point">
-      <pose>-1.17458923 0.93292022 8.31252082 0 0 0</pose>
-      <diffuse>1 0.01 0.01 1</diffuse>
-      <specular>1 0.02 0.02 1</specular>
-      <intensity>0</intensity>
-      <cast_shadows>false</cast_shadows>
-      <attenuation>
-        <range>8</range>
-        <constant>1</constant>
-        <linear>.15</linear>
-        <quadratic>.01</quadratic>
-      </attenuation>
-    </light>
-    <light name="race_red_4" type="point">
-      <pose>-1.27410072 0.80763070 8.31252082 0 0 0</pose>
-      <diffuse>1 0.01 0.01 1</diffuse>
-      <specular>1 0.02 0.02 1</specular>
-      <intensity>0</intensity>
-      <cast_shadows>false</cast_shadows>
-      <attenuation>
-        <range>8</range>
-        <constant>1</constant>
-        <linear>.15</linear>
-        <quadratic>.01</quadratic>
-      </attenuation>
-    </light>
-    <light name="race_red_5" type="point">
-      <pose>-1.37361221 0.68234118 8.31252082 0 0 0</pose>
-      <diffuse>1 0.01 0.01 1</diffuse>
-      <specular>1 0.02 0.02 1</specular>
-      <intensity>0</intensity>
-      <cast_shadows>false</cast_shadows>
-      <attenuation>
-        <range>8</range>
-        <constant>1</constant>
-        <linear>.15</linear>
-        <quadratic>.01</quadratic>
-      </attenuation>
-    </light>
     <model name="ground">
       <static>true</static>
       <pose>0 0 -0.05 0 0 0</pose>
@@ -235,15 +175,21 @@
         </collision>
         <visual name="ground_visual">
           <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>2000 2000</size>
-            </plane>
+            <mesh>
+              <uri>model://urrc_hungaroring/meshes/asphalt_ground.obj</uri>
+            </mesh>
           </geometry>
           <material>
-            <ambient>0 0 0 1</ambient>
-            <diffuse>0 0 0 1</diffuse>
-            <specular>0 0 0 1</specular>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>0.01 0.01 0.01 1</specular>
+            <pbr>
+              <metal>
+                <albedo_map>model://urrc_hungaroring/meshes/offroad.png</albedo_map>
+                <metalness>0</metalness>
+                <roughness>1.0</roughness>
+              </metal>
+            </pbr>
           </material>
         </visual>
       </link>

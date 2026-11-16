@@ -52,13 +52,20 @@
         <cast_shadows>true</cast_shadows>
         <geometry>
           <mesh>
-            <uri>model://urrc_monza/meshes/road.obj</uri>
+            <uri>model://urrc_monza/meshes/road_textured.obj</uri>
           </mesh>
         </geometry>
         <material>
-          <ambient>0.14 0.15 0.16 1</ambient>
-          <diffuse>0.14 0.15 0.16 1</diffuse>
-          <specular>0.02 0.02 0.02 1</specular>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0.01 0.01 0.01 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://urrc_monza/meshes/asphalt.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.94</roughness>
+            </metal>
+          </pbr>
         </material>
       </visual>
       <visual name="markings_visual">

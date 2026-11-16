@@ -86,7 +86,7 @@ def write_model(path, name):
     config = ET.Element("model")
     child(config, "name", model_name); child(config, "version", "1.0")
     child(config, "sdf", "model.sdf", version="1.9")
-    child(config, "description", "1/5 circuit with 0.3m boundary walls and 20 painted grid positions.")
+    child(config, "description", "1/5 circuit with 0.8m boundary walls and 20 painted grid positions.")
     write_xml(config, path / "model.config")
 
 
@@ -104,7 +104,7 @@ def write_world(path, track, *, traffic_lights=False):
             child(plugin, "render_engine", "ogre2")
     scene = child(world, "scene")
     child(scene, "ambient", "0.65 0.65 0.65 1")
-    child(scene, "background", "0 0 0 1")
+    child(scene, "background", "0.50 0.60 0.70 1")
     child(scene, "grid", "false")
     child(scene, "origin_visual", "false")
     child(scene, "shadows", "true")
@@ -189,7 +189,7 @@ def write_gui(path, track, overview=True):
     child(scene, "engine", "ogre2")
     child(scene, "scene", "scene")
     child(scene, "ambient_light", "0.65 0.65 0.65")
-    child(scene, "background_color", "0 0 0")
+    child(scene, "background_color", "0.50 0.60 0.70")
     lo, hi = track.xy.min(axis=0), track.xy.max(axis=0)
     center = (lo + hi) / 2
     if overview:

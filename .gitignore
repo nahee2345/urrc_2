@@ -26,5 +26,16 @@ src/urrc_track_gazebo/models/urrc_*/meshes/road_asphalt.mtl
 src/urrc_track_gazebo/models/urrc_*/meshes/asphalt.png
 src/urrc_track_gazebo/models/urrc_*/meshes/offroad.png
 
-# local simulation-generated assets and CMake pace-car builds
-/generated/
+# Local build and test files
+/build/
+/install/
+/log/
+/race/results/*
+!/race/results/.gitkeep
+/race/previews/
+/race/inbox/*
+!/race/inbox/.gitkeep
+/race/entrants/*
+!/race/entrants/.gitkeep
+**/__pycache__/
+*.pyc

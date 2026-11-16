@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-TRACKS = ("monza", "hungaroring")
+TRACKS = ("monza", "spa", "monaco", "cota", "hungaroring", "baku")
 _ACTIVE = "urrc_start_signal_active"
 
 

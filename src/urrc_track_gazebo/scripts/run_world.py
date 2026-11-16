@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 
-TRACKS = ("monza", "hungaroring")
+TRACKS = ("monza", "spa", "monaco", "cota", "hungaroring", "baku")
 
 
 def choose_track(mode, seed=None):
@@ -68,7 +68,7 @@ def run(args=None):
         parser.exit(2, "Gazebo version check timed out.\n")
     if version.returncode:
         parser.exit(2, "'gz' exists but Gazebo Sim is unavailable. Check installed Gazebo packages.\n")
-    print(f"[URRC] track={name}  scale=1/5  walls=0.30m  grid=20", flush=True)
+    print(f"[URRC] track={name}  scale=1/5  walls=0.8m  grid=20", flush=True)
     print(f"[URRC] Gazebo Sim: {version.stdout.strip() or version.stderr.strip()}", flush=True)
     # Per-user lock prevents our two entry points from opening concurrent worlds.
     # It never kills another application, Gazebo instance, or a previous session.
@@ -88,8 +88,7 @@ def run(args=None):
         # No internet, fixed home path, or regenerated collision files required.
         active = package / "worlds" / f"{name}_signal_active.sdf"
         textured = package / "models" / f"urrc_{name}" / "meshes" / "road_textured.obj"
-        if (not active.is_file() or not textured.is_file()
-                or "urrc_v10_spectator" not in world.read_text(encoding="utf-8")):
+        if not active.is_file() or not textured.is_file():
             import sys as _sys
             _sys.path.insert(0, str(package))
             from urrc_tracks.v10_assets import enhance_track

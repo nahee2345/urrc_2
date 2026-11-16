@@ -16,7 +16,7 @@ import struct
 import xml.etree.ElementTree as ET
 import zlib
 
-TRACKS = ("monza", "hungaroring")
+TRACKS = ("monza", "spa", "monaco", "cota", "hungaroring", "baku")
 SPECTATOR_MODES = ("start", "overview", "sector2", "sector3")
 CAMERA_HFOV = {"start":1.20, "overview":1.30, "sector2":1.04, "sector3":1.04}
 VERSION = "urrc-v10.8-spectator-zoom-2026-10"
@@ -169,30 +169,14 @@ def _camera_pose(meta,points,mode):
     raise ValueError(mode)
 
 
-def _add_cameras(world,name,meta,points):
-    for previous in list(world.findall("model")):
-        if previous.get("name")=="urrc_v10_spectator":
-            world.remove(previous)
-    model=ET.SubElement(world,"model",name="urrc_v10_spectator")
-    ET.SubElement(model,"static").text="true"
-    for mode in SPECTATOR_MODES:
-        x,y,z,pitch,yaw=_camera_pose(meta,points,mode)
-        link=ET.SubElement(model,"link",name=f"{mode}_camera_mount")
-        ET.SubElement(link,"pose").text=f"{x:.6f} {y:.6f} {z:.6f} 0 {pitch:.6f} {yaw:.6f}"
-        sensor=ET.SubElement(link,"sensor",name=f"{mode}_camera",type="camera")
-        ET.SubElement(sensor,"always_on").text="true"
-        ET.SubElement(sensor,"update_rate").text="16" if mode=="start" else "6"
-        ET.SubElement(sensor,"visualize").text="false"
-        ET.SubElement(sensor,"topic").text=f"/urrc/{name}/spectator/{mode}/image"
-        camera=ET.SubElement(sensor,"camera")
-        ET.SubElement(camera,"horizontal_fov").text=f"{CAMERA_HFOV[mode]:.2f}"
-        image=ET.SubElement(camera,"image")
-        ET.SubElement(image,"width").text="800" if mode=="start" else "640"
-        ET.SubElement(image,"height").text="450" if mode=="start" else "360"
-        ET.SubElement(image,"format").text="R8G8B8"
-        clip=ET.SubElement(camera,"clip")
-        ET.SubElement(clip,"near").text="0.1"
-        ET.SubElement(clip,"far").text="5000"
+def _add_cameras(world, name, meta, points):
+    """v22 spectator cameras disabled: legacy call removes only map cameras.
+
+    Do not add off-vehicle camera sensors; each team owns its cameras.
+    """
+    for existing in list(world.findall("model")):
+        if existing.get("name") == "urrc_v10_spectator":
+            world.remove(existing)
 
 
 def _active_model(gate,target):
