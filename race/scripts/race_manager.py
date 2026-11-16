@@ -11,6 +11,8 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 from submission import normalize
 from timing import TimingError, duration, rank_rows
 from race_runtime import PoseLapMonitor, StartGate
+from runtime_diagnostics_v13 import wrap_monitor_v13
+PoseLapMonitor = wrap_monitor_v13(PoseLapMonitor)  # operator-only, no team edits
 
 
 def read_json(path): return json.loads(Path(path).read_text())
@@ -117,26 +119,43 @@ def pause_world(track, paused, env):
     gz_service(track, "control", "gz.msgs.WorldControl", "pause: "+str(paused).lower(), env)
 
 
-def start_sequence(track, root, entries, delay, monitor, gate, laps, env):
+def start_sequence(track, root, entries, delay, monitor, gate, laps, env, *, operator_ready=False, world_process=None, bridge_process=None, stage="official"):
+    # v20 operator-confirmed GUI readiness
+    if operator_ready:
+        from race_readiness_v20 import wait_for_visible_map
+        wait_for_visible_map(track,env,stage=stage,world_process=world_process,
+                             bridge_process=bridge_process)
+
+    # v10 atomic five-red start signal
+    # Only the standalone overlay model emits red; the gantry is left unchanged.
+    from atomic_signal_v10 import AtomicFiveRed
     ids = [e['entry_id'] for e in entries]
     gate.publish(ids, False)
-    lights_all(track, root, False)
-    for i in range(5):
-        light_request(track, i, True, root)
-        time.sleep(1.)
-    time.sleep(delay)
-    pause_world(track, True, env)
-    start_time = monitor.frozen_time()
-    monitor.arm(ids, laps, start_time)
-    # Signal mode: common release. Camera mode: permit camera-controlled start.
-    # Camera nodes must first observe red, then all red lights off.
-    gate.publish(ids, True)
-    lights_all(track, root, False)
-    time.sleep(.1)
-    pause_world(track, False, env)
-    monitor.note_resume()
-    print(f"공통 출발: sim={start_time:.9f}초", flush=True)
-    return start_time
+    lights_all(track, root, False)  # Make the permanent gantry lenses dark BEFORE the sequence.
+    signal = AtomicFiveRed(root, track)
+    signal.start()
+    lights_out = False
+    try:
+        for index in range(1, 6):
+            signal.red(index)
+            time.sleep(1.)
+        time.sleep(delay)
+        pause_world(track, True, env)
+        start_time = monitor.frozen_time()
+        monitor.arm(ids, laps, start_time)
+        # Remove ALL five red visuals in one operation while physics is paused.
+        # Release the camera-dependent controllers only after remove is accepted.
+        signal.all_off()
+        lights_out = True
+        gate.publish(ids, True)
+        time.sleep(.1)
+        pause_world(track, False, env)
+        monitor.note_resume()
+        print(f"공통 출발: sim={start_time:.9f}초 / atomic lights-out", flush=True)
+        return start_time
+    finally:
+        if not lights_out:
+            signal.cleanup_on_error()
 
 def start_world(root,track,event,entries,run_dir):
     pkg=root/"src/urrc_track_gazebo"; env=os.environ.copy()
@@ -146,9 +165,10 @@ def start_world(root,track,event,entries,run_dir):
         if source.is_dir():
             resource_paths.append(str(source))
             resource_paths.extend(str(p) for p in source.rglob("models") if p.is_dir())
+    resource_paths.extend(str(Path(e['_model']).parent) for e in entries)
     inherited=env.get("GZ_SIM_RESOURCE_PATH","")
     if inherited: resource_paths.append(inherited)
-    env["GZ_SIM_RESOURCE_PATH"]=os.pathsep.join(resource_paths)
+    env["GZ_SIM_RESOURCE_PATH"]=os.pathsep.join(dict.fromkeys(resource_paths))
     env["GZ_PARTITION"]="urrc_race_"+event["event_id"]
     os.environ["GZ_PARTITION"]=env["GZ_PARTITION"]
     log=(run_dir/"gazebo.log").open("w")
@@ -166,15 +186,32 @@ def start_world(root,track,event,entries,run_dir):
         raise
     return server,bridge,env,log
 
+
 def stop(proc):
-    if proc and proc.poll() is None:
-        os.killpg(proc.pid,signal.SIGINT)
-        try:proc.wait(timeout=5)
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        proc.send_signal(signal.SIGINT)
+    except ProcessLookupError:
+        return
+    try:
+        proc.wait(timeout=8)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    for sig, seconds in ((signal.SIGTERM,4),(signal.SIGKILL,3)):
+        try:
+            os.killpg(proc.pid,sig)
+        except ProcessLookupError:
+            return
+        try:
+            proc.wait(timeout=seconds)
+            return
         except subprocess.TimeoutExpired:
-            os.killpg(proc.pid,signal.SIGTERM)
-            try:proc.wait(timeout=3)
-            except subprocess.TimeoutExpired:os.killpg(proc.pid,signal.SIGKILL);proc.wait()
-def spawn(root,track,e,slot,env):
+            continue
+    raise RuntimeError(f'프로세스 그룹 종료 실패: {proc.pid}')
+
+def spawn(root,track,e,slot,env,run_dir):
     # Convert URDF/SDF using the same libsdformat as Gazebo, then add an
     # operator-owned timestamped link-pose publisher to this runtime copy.
     converted = subprocess.run(["gz","sdf","-p",e["_model"]], check=True,
@@ -198,13 +235,26 @@ def spawn(root,track,e,slot,env):
                            update_frequency='200',topic=f"/model/{e['entry_id']}/urrc_timing").items():
         ET.SubElement(plugin,name).text=value
     z=slot["road_z"]+float(e.get("spawn_z_offset_m",.04))
+    # Runtime model is operator-owned; resolve existing relative resources so
+    # moving the SDF never breaks meshes. Never write into any entrant directory.
+    model_dir = Path(e['_model']).resolve().parent
+    for uri in sdf.iter('uri'):
+        name=(uri.text or '').strip()
+        if not name or Path(name).is_absolute() or re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:',name):
+            continue
+        target=(model_dir/name).resolve()
+        if target.exists():
+            uri.text=target.as_uri()
+    runtime_dir=Path(run_dir)/'runtime_models'
+    runtime_dir.mkdir(parents=True,exist_ok=True)
     # Keep relative mesh URIs relative to the original model directory.
     # EntityFactory queues sdf_filename for later processing. Keep the file
     # until the simulator has exited, including delayed mesh/resource loading.
-    with tempfile.NamedTemporaryFile(mode='w',suffix='.sdf',prefix='.urrc_',dir=Path(e['_model']).parent,delete=False) as prepared:
+    with tempfile.NamedTemporaryFile(mode='w',suffix='.sdf',prefix=f"{e['entry_id']}_",dir=runtime_dir,delete=False) as prepared:
         e['_prepared_model']=prepared.name
         prepared.write(ET.tostring(sdf,encoding='unicode'));prepared.flush()
         subprocess.run(["ros2","run","ros_gz_sim","create","--world",track,"--file",prepared.name,"--name",e["entry_id"],"--x",str(slot["x"]),"--y",str(slot["y"]),"--z",str(z),"-Y",str(slot["yaw"])],check=True,env=env,timeout=60)
+
 def remove(track,eid,env):
     gz_service(track,"remove","gz.msgs.Entity",f'name: {json.dumps(eid)} type: MODEL',env=env)
 def launch_algo(e,env,run_dir):
@@ -239,7 +289,7 @@ def validate(root):
         lights=[n for n in world.findall("world/light") if n.get("name","").startswith("race_red_")]
         meta=read_json(package/f"tracks/processed/{track}.json")
         expected={f"red_lens_{i}" for i in range(1,6)}
-        if gantry is None or not expected.issubset(lens_names) or len(lights)!=5 or len(meta["grid"])!=20:
+        if gantry is None or not expected.issubset(lens_names) or len(lights) not in (0,5) or len(meta["grid"])!=20 or (not lights and not (package/'worlds'/f'{track}_signal_active.sdf').is_file()):
             raise ValueError(f"{track}: 신호등 렌즈/그리드 리소스가 완전하지 않습니다.")
         if any(float(n.findtext("intensity","-1"))!=0 for n in lights):
             raise ValueError(f"{track}: 신호등 보조 광원은 대기 시 모두 꺼져 있어야 합니다.")
@@ -271,17 +321,21 @@ def result_row(e, state, reason='', grid_position=1):
     finished = state.get('finish_time') is not None
     start = state.get('start_time')
     last = state.get('last_lap_time')
+    first = state.get('first_crossing')
+    if finished and first is None:
+        raise TimingError('완주 시 최초 유효 출발선 통과 기록 없음')
     bracket = state.get('finish_bracket')
     return dict(entry_id=e['entry_id'],display_name=e['display_name'],ros_package=e['ros_package'],
                 status='finished' if finished else 'DNF',reason='' if finished else reason,
                 grid_position=grid_position,laps=state.get('laps',0),
-                time_seconds=state['finish_time']-start if finished else None,
+                time_seconds=state['finish_time']-first if finished else None,
                 lap_times_seconds=state.get('lap_times_seconds',[]),
                 start_sim_time=start,first_crossing_sim_time=state.get('first_crossing'),
                 approach_seconds=state.get('approach_seconds'),finish_sim_time=state.get('finish_time'),
-                elapsed_bracket_seconds=[t-start for t in bracket] if bracket else None,
-                last_lap_elapsed_seconds=last-start if last is not None else None,
+                elapsed_bracket_seconds=[t-first for t in bracket] if bracket and first is not None else None,
+                last_lap_elapsed_seconds=last-first if last is not None and first is not None else None,
                 max_sample_gap_seconds=state.get('max_sample_gap_seconds',0.))
+
 
 
 def save_results(results, run_dir, mode, payload):
@@ -347,8 +401,9 @@ def run_mode(root,mode,final_laps=None,start_mode=None):
                  timing_config={k:cfg[k] for k in ('checkpoint_spacing_m','max_pose_gap_seconds','max_pose_step_m')},
                  audit_directory=str(run_dir.relative_to(root)),results=[])
     save_results(results,run_dir,mode,payload)
-    slots=grid(root,track);server=bridge=monitor=gate=log=None
-    processes={};spawned=set();out=[];rng=random.Random(event['seed'])
+    slots=grid(root,track);server=bridge=monitor=gate=log=env=None
+    processes={};spawned=set();out=[];active=[];rng=random.Random(event['seed'])
+    previous_partition=os.environ.get('GZ_PARTITION')
 
     def check_world():
         if server.poll() is not None or bridge.poll() is not None:
@@ -372,15 +427,22 @@ def run_mode(root,mode,final_laps=None,start_mode=None):
         payload['results']=rank_rows(out)
         save_results(results,run_dir,mode,payload)
 
+    # v21 staged ROS-camera-start order
+    from race_camera_ready_v21 import wait_gate_ready_before_spawn_v21, check_camera_streams_v21
+
     def prepare_entry(e, slot, position):
         eid=e['entry_id']
         try:
-            spawn(root,track,e,slot,env);spawned.add(eid)
+            # v21 START 2/6: launch team's bridge/camera/control first.
+            processes[eid]=launch_algo(e,env,run_dir)
+            wait_gate_ready_before_spawn_v21(gate,eid,processes[eid],timeout=30)
+            # v21 START 3/6: spawn only after controller/start subscriber ready.
+            print(f'[v21 START 3/6] {eid}: 차량 스폰',flush=True)
+            spawn(root,track,e,slot,env,run_dir);spawned.add(eid)
             if not monitor.wait_seen(eid):
                 raise TimingError(f'{eid}: 중앙 base_link 계측을 수신하지 못했습니다.')
-            processes[eid]=launch_algo(e,env,run_dir)
             return True
-        except (ValueError,ET.ParseError,subprocess.CalledProcessError,subprocess.TimeoutExpired,OSError) as exc:
+        except (ValueError,ET.ParseError,subprocess.CalledProcessError,subprocess.TimeoutExpired,OSError,RuntimeError,TimingError) as exc:
             check_world()
             record(e,f'차량/알고리즘 준비 실패: {exc}',position)
             retire(e)
@@ -403,11 +465,19 @@ def run_mode(root,mode,final_laps=None,start_mode=None):
                     retire(e);active.remove(e)
             if not active:continue
             check_world()
-            start_sequence(track,root,active,rng.uniform(cfg['lights_out_min_delay_seconds'],cfg['lights_out_max_delay_seconds']),monitor,gate,laps,env)
+            # v21 START 4/6: real camera frames and ROS /clock before ANY red light.
+            check_camera_streams_v21(root,run_dir,env,active,processes,timeout=60)
+            print('[v21 START 5/6] 카메라 수신 확인 후 운영자 READY 및 신호등 점등',flush=True)
+            start_sequence(track,root,active,rng.uniform(cfg['lights_out_min_delay_seconds'],cfg['lights_out_max_delay_seconds']),monitor,gate,laps,env, operator_ready=True, world_process=server, bridge_process=bridge, stage=mode)
             deadline=time.monotonic()+timeout
             shown={e['entry_id']:0 for e in active}
+            _v13_next_diag=time.monotonic()+5.
             while active:
                 check_world()
+                if time.monotonic()>=_v13_next_diag:
+                    for entry in active:
+                        print('[v13 주행진단] '+monitor.diagnostic_line(entry['entry_id']),flush=True)
+                    _v13_next_diag=time.monotonic()+5.
                 monitor.health([e['entry_id'] for e in active])
                 completed=[]
                 for e in active:
@@ -418,8 +488,8 @@ def run_mode(root,mode,final_laps=None,start_mode=None):
                         shown[eid]=s['laps']
                     reason=None
                     if s['finish_time'] is not None:reason=''
-                    elif processes[eid].poll() is not None:reason='알고리즘 종료'
-                    elif time.monotonic()>=deadline:reason='제한시간 초과'
+                    elif processes[eid].poll() is not None:reason=monitor.failure_reason(eid,'알고리즘 종료')
+                    elif time.monotonic()>=deadline:reason=monitor.failure_reason(eid,'제한시간 초과')
                     if reason is not None:completed.append((e,reason))
                 if completed:
                     # Pause the physics while stopping/removing cars, so a slow
@@ -439,19 +509,66 @@ def run_mode(root,mode,final_laps=None,start_mode=None):
         print_table(out,'예선 순위' if mode=='qualifying' else '본선 최종 순위')
         print(f"결과/계측 원본: {run_dir}",flush=True)
     except BaseException as exc:
-        payload.update(valid=False,state='invalid',error=str(exc),results=rank_rows(out))
+        error_text = '운영자 중단(SIGINT)' if isinstance(exc,KeyboardInterrupt) else (str(exc) or type(exc).__name__)
+        if monitor:
+            for entry in list(active):
+                if any(row['entry_id']==entry['entry_id'] for row in out):
+                    continue
+                try:
+                    record(entry,monitor.failure_reason(entry['entry_id'],error_text),
+                           1 if mode=='qualifying' else entries.index(entry)+1)
+                except Exception as record_error:
+                    print(f'[v13] DNF 기록 실패: {entry["entry_id"]}: {record_error}',flush=True)
+        payload.update(valid=False,state='invalid',error=error_text,results=rank_rows(out))
         save_results(results,run_dir,mode,payload)
         raise
     finally:
-        for proc in processes.values():stop(proc)
-        if gate:gate.close()
-        if monitor:monitor.close()
-        if bridge:stop(bridge)
-        if server:stop(server)
-        if log:log.close()
-        for e in entries:
-            if e.get('_prepared_model'):
-                Path(e['_prepared_model']).unlink(missing_ok=True)
+        _v13_cleanup_errors=[]
+        def _v13_safe(label,callback):
+            try:
+                callback()
+            except BaseException as cleanup_exc:
+                _v13_cleanup_errors.append(f'{label}: {cleanup_exc or type(cleanup_exc).__name__}')
+        if gate:
+            for eid in list(processes):
+                if gate.pubs[eid].get_subscription_count()>0:
+                    _v13_safe(f'{eid} stop gate',lambda eid=eid:gate.publish([eid],False))
+        for eid,proc in list(processes.items()):
+            _v13_safe(f'{eid} controller',lambda proc=proc:stop(proc))
+        if server is not None and env is not None:
+            for eid in list(spawned):
+                _v13_safe(f'{eid} remove',lambda eid=eid:remove(track,eid,env))
+        if gate:_v13_safe('gate.close',gate.close)
+        if monitor:_v13_safe('monitor.close',monitor.close)
+        if gate or monitor:
+            def _v13_shutdown_ros():
+                import rclpy
+                if rclpy.ok():rclpy.shutdown()
+            _v13_safe('rclpy.shutdown',_v13_shutdown_ros)
+        if bridge:_v13_safe('bridge',lambda:stop(bridge))
+        if server:_v13_safe('Gazebo',lambda:stop(server))
+        if log:_v13_safe('Gazebo log',log.close)
+        for entry in entries:
+            prepared=entry.get('_prepared_model')
+            if prepared:
+                path=Path(prepared).resolve()
+                if path.is_relative_to(run_dir.resolve()):
+                    _v13_safe(f'{entry["entry_id"]} runtime SDF',lambda path=path:path.unlink(missing_ok=True))
+                else:
+                    _v13_cleanup_errors.append(f'{entry["entry_id"]} 위험한 임시파일 경로 감지(삭제 안 함): {path}')
+        if previous_partition is None:
+            os.environ.pop('GZ_PARTITION',None)
+        else:
+            os.environ['GZ_PARTITION']=previous_partition
+        if _v13_cleanup_errors:
+            print('[v13] 종료/정리 경고: '+'; '.join(_v13_cleanup_errors),file=sys.stderr,flush=True)
+            payload['cleanup_errors']=_v13_cleanup_errors
+            if payload.get('state')=='complete':
+                payload.update(valid=False,state='invalid',error='경기 종료 후 리소스 정리 실패')
+            try:save_results(results,run_dir,mode,payload)
+            except Exception as exc:print('[v13] 정리 오류 기록 실패:',exc,file=sys.stderr)
+
+
 
 def main():
     p=argparse.ArgumentParser();p.add_argument("command",choices=("intake","validate","new-event","qualifying","final","status"));p.add_argument("--root",type=Path,default=Path(__file__).resolve().parents[2]);p.add_argument("--track");p.add_argument("--laps",type=int);p.add_argument("--start-mode",choices=("signal","camera"));a=p.parse_args();root=a.root.resolve()
@@ -471,6 +588,10 @@ def main():
             ep=root/"race/event_state.json";print(json.dumps(read_json(ep) if ep.is_file() else {"event":"미생성"},ensure_ascii=False,indent=2))
             for f in (root/"race/results/qualifying.json",root/"race/results/final.json"):
                 if f.is_file():print(f"{f.name}: {len(read_json(f)['results'])}개 결과")
+    except KeyboardInterrupt:
+        print('[v13] 운영자 중단(SIGINT): 기록 무효 처리 및 정리 수행',file=sys.stderr)
+        return 130
     except Exception as exc:print(f"대회 실행 오류: {exc}",file=sys.stderr);return 2
     return 0
+
 if __name__=="__main__":sys.exit(main())

@@ -87,7 +87,7 @@ def test_frame_timestamp_mismatch_is_not_replaced_by_clock():
     with pytest.raises(TimingError):world_base_sample([tf('','team01')],'team01','base_link','monza')
 
 
-@pytest.mark.parametrize('track',['monza','hungaroring'])
+@pytest.mark.parametrize('track',['monza','spa','monaco','cota','hungaroring','baku'])
 def test_two_complete_laps_on_each_actual_centerline(track):
     gates=track_gates(ROOT,track)
     assert len(gates)>30

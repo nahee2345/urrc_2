@@ -80,7 +80,9 @@ class LapTimer:
         _, x, y, _ = self.previous
         if (x-gate['x'])*math.cos(gate['yaw'])+(y-gate['y'])*math.sin(gate['yaw']) >= 0:
             raise TimingError('출발 전에 차량이 이미 출발선을 넘었습니다.')
-        self.start_time, self.target_laps, self.active = start_time, laps, True
+        # v6: signal time grants permission only; timing starts at first valid gate crossing.
+        self.release_time = start_time
+        self.start_time, self.target_laps, self.active = None, laps, True
 
     def update(self, sample):
         if not all(math.isfinite(v) for v in sample):
@@ -107,7 +109,7 @@ class LapTimer:
             if hit is None or hit['time'] <= last_time:
                 break
             last_time = hit['time']
-            if hit['time'] < self.start_time:
+            if hit['time'] < self.release_time:
                 break
             hit.update(gate=self.next_gate, lap=len(self.lap_times)+1)
             self.crossings.append(hit)
@@ -115,6 +117,7 @@ class LapTimer:
             if self.next_gate == 0:
                 if self.first_crossing is None:
                     self.first_crossing = hit['time']
+                    self.start_time = hit['time']
                 else:
                     since = self.last_lap_time if self.last_lap_time is not None else self.first_crossing
                     self.lap_times.append(hit['time']-since)
@@ -132,7 +135,7 @@ class LapTimer:
                     start_time=self.start_time, first_crossing=self.first_crossing,
                     finish_time=self.finish_time, finish_bracket=self.finish_bracket,
                     last_lap_time=self.last_lap_time, lap_times_seconds=list(self.lap_times),
-                    approach_seconds=None if self.first_crossing is None else self.first_crossing-self.start_time,
+                    approach_seconds=None if self.first_crossing is None else self.first_crossing-self.release_time,
                     next_checkpoint=self.next_gate, max_sample_gap_seconds=self.max_observed_gap)
 
 

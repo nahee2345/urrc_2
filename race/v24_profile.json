@@ -1,0 +1,12 @@
+{
+  "version": 24,
+  "mode": "practice",
+  "tracks": [
+    "monza",
+    "hungaroring",
+    "monaco"
+  ],
+  "folder": "urrc_2",
+  "interface": "unchanged team_XX package, per-team ROS topics, camera and lidar",
+  "official_races_enabled": false
+}

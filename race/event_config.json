@@ -1,7 +1,8 @@
 {
   "track_pool": [
     "monza",
-    "hungaroring"
+    "hungaroring",
+    "monaco"
   ],
   "qualifying_laps": 2,
   "final_laps": 10,

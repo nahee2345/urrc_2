@@ -154,16 +154,49 @@ class StartGate:
         return [eid for eid in ids if self.pubs[eid].get_subscription_count()==0 or processes[eid].poll() is not None]
 
     def publish(self, ids, value):
+        # v11 ROS DDS ACK retry (fail closed)
+        # ROS DDS transport ACK != a participant application's state ACK.
+        # Keep the existing gate contract, but tolerate startup DDS latency.
         from rclpy.duration import Duration
-        msg = self.Bool(); msg.data = value
-        for eid in ids:
-            self.pubs[eid].publish(msg)
-        # Publishers were discovered before the light sequence. Publish all
-        # commands before waiting for ACKs, while physics is paused at start.
-        for eid in ids:
-            if not self.pubs[eid].wait_for_all_acked(Duration(seconds=2)):
-                raise TimingError(f'{eid}: 공통 출발/정지 신호 전송 확인 실패')
-        self.rclpy.spin_once(self.node, timeout_sec=.05)
+        import os
+        msg = self.Bool()
+        msg.data = bool(value)
+        if not ids:
+            return
+        max_attempts = 4
+        last_failed = list(ids)
+        for attempt in range(1, max_attempts + 1):
+            missing = [eid for eid in ids
+                       if self.pubs[eid].get_subscription_count() < 1]
+            if missing:
+                last_failed = missing
+                print(f'[v11 GATE] attempt={attempt}/{max_attempts} '
+                      f'no subscribers={missing}', flush=True)
+            else:
+                # Publish to all cars first, before waiting for any ACK.
+                for eid in ids:
+                    self.pubs[eid].publish(msg)
+                self.rclpy.spin_once(self.node, timeout_sec=.05)
+                failed = []
+                for eid in ids:
+                    if not self.pubs[eid].wait_for_all_acked(Duration(seconds=3)):
+                        failed.append(eid)
+                if not failed:
+                    if attempt > 1:
+                        print(f'[v11 GATE] recovered on attempt {attempt}', flush=True)
+                    return
+                last_failed = failed
+                print(f'[v11 GATE] attempt={attempt}/{max_attempts} '
+                      f'DDS ACK timeout={failed}', flush=True)
+            if attempt < max_attempts:
+                time.sleep(.25)
+        diagnostic = {eid:self.pubs[eid].get_subscription_count()
+                      for eid in last_failed}
+        raise TimingError(
+            f'공통 출발/정지 신호 전송 확인 실패: cars={last_failed}, '
+            f'subscribers={diagnostic}, '
+            f'RMW_IMPLEMENTATION={os.environ.get("RMW_IMPLEMENTATION", "default")}; '
+            '4회 재시도 후 안전 중단')
 
     def close(self):
         self.node.destroy_node()
